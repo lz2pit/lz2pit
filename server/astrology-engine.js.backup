@@ -1,0 +1,403 @@
+export default class AstrologyCalculator {
+    constructor() {
+        console.log("Астрологичен калкулатор инициализиран (симулирани данни)");
+    }
+
+    async getCoordinates(city, country) {
+        // Basic coordinates for Bulgarian cities
+        const cityCoordinates = {
+            'плевен': { lat: 43.4167, lng: 24.6167 },
+            'софия': { lat: 42.6977, lng: 23.3219 },
+            'пловдив': { lat: 42.1354, lng: 24.7453 },
+            'варна': { lat: 43.2141, lng: 27.9147 },
+            'бургас': { lat: 42.5048, lng: 27.4626 },
+            'русе': { lat: 43.8564, lng: 25.9704 },
+            'стара загора': { lat: 42.4258, lng: 25.6342 },
+            'сливен': { lat: 42.6824, lng: 26.3151 },
+            'добрич': { lat: 43.5736, lng: 27.8278 },
+            'шумен': { lat: 43.2706, lng: 26.9247 }
+        };
+
+        const lowerCity = city.toLowerCase();
+        if (cityCoordinates[lowerCity]) {
+            return { ...cityCoordinates[lowerCity], city, country };
+        }
+        
+        // Default to Sofia if city not found
+        return { lat: 42.6977, lng: 23.3219, city, country };
+    }
+
+    async getCitySuggestions(query) {
+        const cities = [
+            "София", "Пловдив", "Варна", "Бургас", "Русе", "Стара Загора",
+            "Плевен", "Сливен", "Добрич", "Шумен", "Перник", "Хасково",
+            "Ямбол", "Пазарджик", "Благоевград", "Велико Търново", "Враца",
+            "Габрово", "Асеновград", "Видин", "Казанлък", "Кюстендил"
+        ];
+        
+        return cities
+            .filter(c => c.toLowerCase().includes(query.toLowerCase()))
+            .slice(0, 8)
+            .map(c => ({ city: c, country: "България" }));
+    }
+
+    async calculateNatalChart(birthData, coordinates) {
+        try {
+            const date = new Date(Date.UTC(
+                birthData.year, birthData.month - 1, birthData.day,
+                birthData.hour, birthData.minute, birthData.second || 0
+            ));
+
+            // Simulate Julian Day calculation
+            const jd_ut = this.dateToJulianDay(date);
+
+            const planetNames = ['Слънце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Уран','Нептун','Плутон'];
+            const planets = {};
+
+            // Simulate realistic planetary positions based on birth date
+            const baseDate = new Date(2000, 0, 1); // Reference date
+            const birthDate = new Date(birthData.year, birthData.month - 1, birthData.day);
+            const daysSince = Math.floor((birthDate - baseDate) / (1000 * 60 * 60 * 24));
+            
+            // Simulated planetary motions (degrees per day approximately)
+            const planetMotions = [
+                { base: 280, motion: 0.985 }, // Sun
+                { base: 218, motion: 13.176 }, // Moon
+                { base: 252, motion: 1.383 }, // Mercury
+                { base: 181, motion: 0.615 }, // Venus
+                { base: 355, motion: 0.524 }, // Mars
+                { base: 166, motion: 0.083 }, // Jupiter
+                { base: 46, motion: 0.034 }, // Saturn
+                { base: 314, motion: 0.012 }, // Uranus
+                { base: 304, motion: 0.006 }, // Neptune
+                { base: 249, motion: 0.004 }  // Pluto
+            ];
+
+            planetNames.forEach((planetName, i) => {
+                const motion = planetMotions[i];
+                let longitude = (motion.base + (daysSince * motion.motion) + (birthData.hour * 15 / 24)) % 360;
+                
+                // Ensure longitude is positive
+                if (longitude < 0) longitude += 360;
+                
+                const sign = this.getZodiacSign(longitude);
+                const degree = Math.floor(longitude % 30);
+                const minutes = Math.floor(((longitude % 30) % 1) * 60);
+                const seconds = Math.round(((((longitude % 30) % 1) * 60) % 1) * 60);
+                
+                planets[planetName] = {
+                    longitude: longitude,
+                    sign: sign,
+                    degree: degree,
+                    minutes: minutes,
+                    seconds: seconds,
+                    house: this.calculatePlanetHouse(longitude, coordinates.lat, coordinates.lng, jd_ut)
+                };
+            });
+
+            const houses = this.calculateHouses(jd_ut, coordinates.lat, coordinates.lng);
+            const aspects = this.calculateAspects(planets);
+
+            return { 
+                birthData, 
+                coordinates, 
+                planets, 
+                houses, 
+                aspects 
+            };
+        } catch (error) {
+            console.error('Error in calculateNatalChart:', error);
+            throw new Error('Грешка при изчисляване на наталната карта: ' + error.message);
+        }
+    }
+
+    dateToJulianDay(date) {
+        const a = Math.floor((14 - (date.getUTCMonth() + 1)) / 12);
+        const y = date.getUTCFullYear() + 4800 - a;
+        const m = (date.getUTCMonth() + 1) + 12 * a - 3;
+        
+        return date.getUTCDate() + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) 
+               - Math.floor(y / 100) + Math.floor(y / 400) - 32045 
+               + (date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600) / 24;
+    }
+
+    calculateHouses(jd_ut, lat, lon) {
+        try {
+            // Simulate realistic house calculations based on latitude and time
+            const houses = {};
+            
+            // Calculate approximate ASC based on time and latitude
+            const localTime = (jd_ut % 1) * 24; // Convert to hours
+            const ascDegree = ((localTime * 15) + (lat * 0.5)) % 360; // Rough approximation
+            
+            // Calculate house cusps using Placidus-style approximation
+            for (let i = 1; i <= 12; i++) {
+                let cusp;
+                if (i === 1) {
+                    cusp = ascDegree; // ASC
+                } else if (i === 10) {
+                    cusp = (ascDegree + 90) % 360; // MC approximation
+                } else if (i === 7) {
+                    cusp = (ascDegree + 180) % 360; // DESC
+                } else if (i === 4) {
+                    cusp = (ascDegree + 270) % 360; // IC
+                } else {
+                    // Interpolate other houses
+                    const baseAngle = (i - 1) * 30;
+                    const variation = Math.sin((i * Math.PI) / 6) * lat * 0.1;
+                    cusp = (ascDegree + baseAngle + variation) % 360;
+                }
+                
+                houses[i] = {
+                    cusp: cusp,
+                    sign: this.getZodiacSign(cusp),
+                    degree: Math.floor(cusp % 30),
+                    minutes: Math.floor(((cusp % 30) % 1) * 60)
+                };
+            }
+
+            // Add ASC and MC
+            houses.ASC = ascDegree;
+            houses.MC = (ascDegree + 90) % 360;
+
+            return houses;
+        } catch (error) {
+            console.error('Error calculating houses:', error);
+            // Return fallback equal houses
+            const houses = {};
+            for (let i = 1; i <= 12; i++) {
+                const cusp = (i - 1) * 30;
+                houses[i] = {
+                    cusp: cusp,
+                    sign: this.getZodiacSign(cusp),
+                    degree: Math.floor(cusp % 30),
+                    minutes: 0
+                };
+            }
+            return houses;
+        }
+    }
+
+    calculatePlanetHouse(longitude, lat, lng, jd_ut) {
+        try {
+            // Calculate houses first
+            const houses = this.calculateHouses(jd_ut, lat, lng);
+            
+            // Find which house the planet is in
+            for (let i = 1; i <= 12; i++) {
+                const currentCusp = houses[i].cusp;
+                const nextHouse = (i % 12) + 1;
+                const nextCusp = houses[nextHouse].cusp;
+                
+                // Handle the case where house crosses 0 degrees
+                if (nextCusp < currentCusp) {
+                    if (longitude >= currentCusp || longitude < nextCusp) {
+                        return i;
+                    }
+                } else {
+                    if (longitude >= currentCusp && longitude < nextCusp) {
+                        return i;
+                    }
+                }
+            }
+            
+            return 1; // Default to house 1 if calculation fails
+        } catch (error) {
+            console.error('Error calculating planet house:', error);
+            return 1;
+        }
+    }
+
+    getZodiacSign(degree) {
+        const signs = [
+            { name: 'Овен', symbol: '♈' },
+            { name: 'Телец', symbol: '♉' },
+            { name: 'Близнаци', symbol: '♊' },
+            { name: 'Рак', symbol: '♋' },
+            { name: 'Лъв', symbol: '♌' },
+            { name: 'Дева', symbol: '♍' },
+            { name: 'Везни', symbol: '♎' },
+            { name: 'Скорпион', symbol: '♏' },
+            { name: 'Стрелец', symbol: '♐' },
+            { name: 'Козирог', symbol: '♑' },
+            { name: 'Водолей', symbol: '♒' },
+            { name: 'Риби', symbol: '♓' }
+        ];
+        
+        const signIndex = Math.floor(degree / 30) % 12;
+        return signs[signIndex];
+    }
+
+    calculateAspects(planets) {
+        const aspects = [];
+        const aspectTypes = [
+            { name: 'Съвпад', degrees: 0, orb: 3, symbol: '☌', color: '#ff6b6b' },
+            { name: 'Секстил', degrees: 60, orb: 3, symbol: '⚹', color: '#4ecdc4' },
+            { name: 'Квадрат', degrees: 90, orb: 3, symbol: '□', color: '#ff9f43' },
+            { name: 'Трин', degrees: 120, orb: 3, symbol: '△', color: '#26de81' },
+            { name: 'Опозиция', degrees: 180, orb: 3, symbol: '☍', color: '#fd79a8' }
+        ];
+
+        const planetNames = Object.keys(planets);
+        
+        for (let i = 0; i < planetNames.length; i++) {
+            for (let j = i + 1; j < planetNames.length; j++) {
+                const planet1 = planetNames[i];
+                const planet2 = planetNames[j];
+                const long1 = planets[planet1].longitude;
+                const long2 = planets[planet2].longitude;
+                
+                let diff = Math.abs(long1 - long2);
+                if (diff > 180) diff = 360 - diff;
+                
+                for (const aspectType of aspectTypes) {
+                    const orb = Math.abs(diff - aspectType.degrees);
+                    if (orb <= aspectType.orb) {
+                        aspects.push({
+                            type: 'planet-planet',
+                            planet1: planet1,
+                            planet2: planet2,
+                            aspect: aspectType.name,
+                            orb: orb.toFixed(1),
+                            color: aspectType.color,
+                            symbol: aspectType.symbol
+                        });
+                        break; // Only one aspect per planet pair
+                    }
+                }
+            }
+        }
+
+        return aspects;
+    }
+
+    async calculateForecast(birthData, coordinates, startDate, endDate) {
+        try {
+            const forecasts = [];
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            
+            // Calculate transits for each month
+            for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
+                const jd_ut = this.dateToJulianDay(d);
+
+                const transitPlanets = this.calculateTransitPositions(jd_ut);
+                const natalChart = await this.calculateNatalChart(birthData, coordinates);
+                
+                // Find significant transits
+                const transits = this.findSignificantTransits(transitPlanets, natalChart.planets);
+                
+                transits.forEach(transit => {
+                    forecasts.push({
+                        date: new Date(d),
+                        ...transit
+                    });
+                });
+            }
+            
+            return forecasts.sort((a, b) => a.date - b.date);
+        } catch (error) {
+            console.error('Error calculating forecast:', error);
+            throw new Error('Грешка при изчисляване на прогнозата: ' + error.message);
+        }
+    }
+
+    calculateTransitPositions(jd_ut) {
+        const planetNames = ['Слънце','Луна','Меркурий','Венера','Марс','Юпитер','Сатурн','Уран','Нептун','Плутон'];
+        const transits = {};
+
+        // Convert Julian Day back to a date for calculations
+        const transitDate = this.julianDayToDate(jd_ut);
+        const baseDate = new Date(2000, 0, 1);
+        const daysSince = Math.floor((transitDate - baseDate) / (1000 * 60 * 60 * 24));
+        
+        // Same planetary motions as in natal chart calculation
+        const planetMotions = [
+            { base: 280, motion: 0.985 }, // Sun
+            { base: 218, motion: 13.176 }, // Moon
+            { base: 252, motion: 1.383 }, // Mercury
+            { base: 181, motion: 0.615 }, // Venus
+            { base: 355, motion: 0.524 }, // Mars
+            { base: 166, motion: 0.083 }, // Jupiter
+            { base: 46, motion: 0.034 }, // Saturn
+            { base: 314, motion: 0.012 }, // Uranus
+            { base: 304, motion: 0.006 }, // Neptune
+            { base: 249, motion: 0.004 }  // Pluto
+        ];
+
+        planetNames.forEach((planetName, i) => {
+            const motion = planetMotions[i];
+            const longitude = (motion.base + (daysSince * motion.motion)) % 360;
+            
+            transits[planetName] = {
+                longitude: longitude,
+                sign: this.getZodiacSign(longitude)
+            };
+        });
+
+        return transits;
+    }
+
+    julianDayToDate(jd) {
+        const z = Math.floor(jd + 0.5);
+        const f = (jd + 0.5) - z;
+        let a = z;
+        
+        if (z >= 2299161) {
+            const alpha = Math.floor((z - 1867216.25) / 36524.25);
+            a = z + 1 + alpha - Math.floor(alpha / 4);
+        }
+        
+        const b = a + 1524;
+        const c = Math.floor((b - 122.1) / 365.25);
+        const d = Math.floor(365.25 * c);
+        const e = Math.floor((b - d) / 30.6001);
+        
+        const day = b - d - Math.floor(30.6001 * e) + f;
+        const month = e < 14 ? e - 1 : e - 13;
+        const year = month > 2 ? c - 4716 : c - 4715;
+        
+        return new Date(year, month - 1, Math.floor(day));
+    }
+
+    findSignificantTransits(transitPlanets, natalPlanets) {
+        const transits = [];
+        const aspectTypes = [
+            { name: 'Съвпад', degrees: 0, orb: 2, symbol: '☌', color: '#ff6b6b' },
+            { name: 'Секстил', degrees: 60, orb: 2, symbol: '⚹', color: '#4ecdc4' },
+            { name: 'Квадрат', degrees: 90, orb: 2, symbol: '□', color: '#ff9f43' },
+            { name: 'Трин', degrees: 120, orb: 2, symbol: '△', color: '#26de81' },
+            { name: 'Опозиция', degrees: 180, orb: 2, symbol: '☍', color: '#fd79a8' }
+        ];
+
+        Object.keys(transitPlanets).forEach(transitPlanet => {
+            Object.keys(natalPlanets).forEach(natalPlanet => {
+                const transitLong = transitPlanets[transitPlanet].longitude;
+                const natalLong = natalPlanets[natalPlanet].longitude;
+                
+                let diff = Math.abs(transitLong - natalLong);
+                if (diff > 180) diff = 360 - diff;
+                
+                for (const aspectType of aspectTypes) {
+                    const orb = Math.abs(diff - aspectType.degrees);
+                    if (orb <= aspectType.orb) {
+                        transits.push({
+                            type: 'transit',
+                            transitPlanet: transitPlanet,
+                            natalPlanet: natalPlanet,
+                            aspect: aspectType.name,
+                            orb: orb.toFixed(1),
+                            color: aspectType.color,
+                            symbol: aspectType.symbol
+                        });
+                        break;
+                    }
+                }
+            });
+        });
+
+        return transits;
+    }
+}
+
+// Export is already at the top of the class declaration
