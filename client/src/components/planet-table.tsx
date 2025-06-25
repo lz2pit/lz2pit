@@ -1,7 +1,22 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getPlanetColor, getPlanetSymbol, formatDegreeMinutesSeconds } from "@/lib/astrology-utils";
 
-// Разширяваме типа PlanetPosition локално
+// Речник за съкращенията на домовете
+const HOUSE_LABELS_MAP: Record<number, string> = {
+  1: "ASC",
+  2: "2",
+  3: "3",
+  4: "IC",
+  5: "5",
+  6: "6",
+  7: "DSC",
+  8: "8",
+  9: "9",
+  10: "MC",
+  11: "11",
+  12: "12",
+};
+
 interface ExtendedPlanetPosition {
   longitude: number;
   sign: { name: string; symbol: string };
@@ -22,15 +37,15 @@ export default function PlanetTable({ planets }: PlanetTableProps) {
   // Функция за форматиране на типа движение
   const getMotionDisplay = (motionType?: string) => {
     if (!motionType) return <span className="text-gray-400">—</span>;
-    
+
     const motionStyles: Record<string, { text: string; color: string; title: string }> = {
       'R': { text: 'R', color: 'text-red-600 font-bold', title: 'Ретроградна' },
       'D': { text: 'D', color: 'text-green-600', title: 'Директна' },
       'S': { text: 'S', color: 'text-orange-600 font-bold', title: 'Стационарна' }
     };
-    
+
     const style = motionStyles[motionType] || { text: motionType, color: 'text-gray-600', title: '' };
-    
+
     return (
       <span className={style.color} title={style.title}>
         {style.text}
@@ -43,19 +58,19 @@ export default function PlanetTable({ planets }: PlanetTableProps) {
     if (magnitude === undefined || magnitude === null) {
       return <span className="text-gray-400">—</span>;
     }
-    
+
     if (magnitude === 'X') {
       return <span className="text-gray-500" title="Невидима планета">X</span>;
     }
-    
+
     const mag = typeof magnitude === 'number' ? magnitude : parseFloat(magnitude.toString());
     let colorClass = 'text-gray-700';
-    
+
     if (mag < -4) colorClass = 'text-yellow-600 font-bold'; // Много ярка (Венера, Слънце)
     else if (mag < -2) colorClass = 'text-yellow-500'; // Ярка (Юпитер, Марс)
     else if (mag < 0) colorClass = 'text-blue-600'; // Средно ярка (Сатурн)
     else if (mag < 2) colorClass = 'text-blue-500'; // Слабо видима (Меркурий)
-    
+
     return <span className={colorClass}>{magnitude}</span>;
   };
 
@@ -87,16 +102,14 @@ export default function PlanetTable({ planets }: PlanetTableProps) {
         <TableBody className="divide-y divide-gray-200">
           {Object.entries(planets).map(([planetName, planetData]) => (
             <TableRow key={planetName} className="hover:bg-gray-50 transition-colors">
-              <TableCell className="px-6 py-4">
-                <div className="flex items-center space-x-3">
-                  <span
-                    className="text-2xl symbol-font"
-                    style={{ color: getPlanetColor(planetName) }}
-                  >
-                    {getPlanetSymbol(planetName)}
-                  </span>
-                  <span className="font-medium">{planetName}</span>
-                </div>
+              {/* САМО глиф на планетата */}
+              <TableCell className="px-6 py-4 text-center">
+                <span
+                  className="text-2xl symbol-font"
+                  style={{ color: getPlanetColor(planetName) }}
+                >
+                  {getPlanetSymbol(planetName)}
+                </span>
               </TableCell>
               <TableCell className="px-4 py-4 text-center">
                 {getMotionDisplay(planetData.motionType)}
@@ -104,12 +117,10 @@ export default function PlanetTable({ planets }: PlanetTableProps) {
               <TableCell className="px-4 py-4 text-center font-mono">
                 {getMagnitudeDisplay(planetData.magnitude)}
               </TableCell>
-              <TableCell className="px-6 py-4">
+              {/* САМО глиф на знака */}
+              <TableCell className="px-6 py-4 text-center">
                 {planetData.sign ? (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xl symbol-font">{planetData.sign.symbol}</span>
-                    <span>{planetData.sign.name}</span>
-                  </div>
+                  <span className="text-xl symbol-font">{planetData.sign.symbol}</span>
                 ) : (
                   <span className="text-gray-400">—</span>
                 )}
@@ -122,17 +133,18 @@ export default function PlanetTable({ planets }: PlanetTableProps) {
                   <span className="text-gray-400">—</span>
                 }
               </TableCell>
-              <TableCell className="px-6 py-4 font-semibold text-celestial">
-                {typeof planetData.house === 'number' ?
-                  `Дом ${planetData.house}` :
-                  <span className="text-gray-400">—</span>
+              {/* ДОМ: само съкращението (без "Дом") */}
+              <TableCell className="px-6 py-4 font-semibold text-celestial text-center">
+                {typeof planetData.house === 'number'
+                  ? (HOUSE_LABELS_MAP[planetData.house] || planetData.house)
+                  : <span className="text-gray-400">—</span>
                 }
               </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-      
+
       {/* Легенда */}
       <div className="border-t border-gray-200 px-6 py-3 bg-gray-50">
         <div className="grid md:grid-cols-2 gap-4 text-sm">

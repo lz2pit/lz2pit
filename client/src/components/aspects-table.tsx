@@ -16,6 +16,26 @@ interface AspectsTableProps {
   aspects: Aspect[];
 }
 
+// Речник за показване на домовете и ъглите с точните съкращения
+const HOUSE_LABELS_MAP: Record<string, string> = {
+  "Дом 1": "ASC",
+  "Дом 2": "2",
+  "Дом 3": "3",
+  "Дом 4": "IC",
+  "Дом 5": "5",
+  "Дом 6": "6",
+  "Дом 7": "DSC",
+  "Дом 8": "8",
+  "Дом 9": "9",
+  "Дом 10": "MC",
+  "Дом 11": "11",
+  "Дом 12": "12",
+  "Асцендент": "ASC",
+  "Десцендент": "DSC",
+  "IC": "IC",
+  "MC": "MC",
+};
+
 export default function AspectsTable({ aspects }: AspectsTableProps) {
   if (!aspects || aspects.length === 0) {
     return (
@@ -23,41 +43,27 @@ export default function AspectsTable({ aspects }: AspectsTableProps) {
     );
   }
 
-  // Групираме аспектите по категория
   const planetToPlanet = aspects.filter(a => !a.category || a.category === "planet-planet");
   const planetToHouse = aspects.filter(a => a.category === "planet-house");
   const planetToAngle = aspects.filter(a => a.category === "planet-angle");
 
   const renderAspectRow = (aspect: Aspect, index: number) => {
+    if (!aspect || !aspect.planet1 || !aspect.planet2) return null;
+
     const isPlanetToHouse = aspect.category === "planet-house";
     const isPlanetToAngle = aspect.category === "planet-angle";
-    
+
     return (
       <TableRow key={index} className="hover:bg-gray-50 transition-colors">
         <TableCell className="px-6 py-4">
           <div className="flex items-center space-x-2">
-            {!isPlanetToHouse && (
-              <>
-                <span
-                  className="text-lg symbol-font"
-                  style={{ color: getPlanetColor(aspect.planet1) }}
-                >
-                  {getPlanetSymbol(aspect.planet1)}
-                </span>
-                <span className="font-medium">{aspect.planet1}</span>
-              </>
-            )}
-            {isPlanetToHouse && (
-              <>
-                <span
-                  className="text-lg symbol-font"
-                  style={{ color: getPlanetColor(aspect.planet1) }}
-                >
-                  {getPlanetSymbol(aspect.planet1)}
-                </span>
-                <span className="font-medium">{aspect.planet1}</span>
-              </>
-            )}
+            {/* Само глиф, без име */}
+            <span
+              className="text-lg symbol-font"
+              style={{ color: getPlanetColor(aspect.planet1) }}
+            >
+              {getPlanetSymbol(aspect.planet1)}
+            </span>
           </div>
         </TableCell>
         <TableCell className="px-6 py-4 text-center">
@@ -71,26 +77,26 @@ export default function AspectsTable({ aspects }: AspectsTableProps) {
         <TableCell className="px-6 py-4">
           <div className="flex items-center space-x-2">
             {isPlanetToHouse ? (
-              <span className="font-medium text-purple-600">{aspect.planet2}</span>
+              <span className="font-medium text-purple-600">
+                {HOUSE_LABELS_MAP[aspect.planet2] || aspect.planet2}
+              </span>
             ) : isPlanetToAngle ? (
-              <span className="font-medium text-indigo-600">{aspect.planet2}</span>
+              <span className="font-medium text-indigo-600">
+                {HOUSE_LABELS_MAP[aspect.planet2] || aspect.planet2}
+              </span>
             ) : (
-              <>
-                <span
-                  className="text-lg symbol-font"
-                  style={{ color: getPlanetColor(aspect.planet2) }}
-                >
-                  {getPlanetSymbol(aspect.planet2)}
-                </span>
-                <span className="font-medium">{aspect.planet2}</span>
-              </>
+              // Само глиф, без име
+              <span
+                className="text-lg symbol-font"
+                style={{ color: getPlanetColor(aspect.planet2) }}
+              >
+                {getPlanetSymbol(aspect.planet2)}
+              </span>
             )}
           </div>
         </TableCell>
         <TableCell className="px-6 py-4 text-center">
-          <span className="text-sm text-gray-600">
-            {aspect.angle.toFixed(2)}°
-          </span>
+          <span className="text-sm text-gray-600">{aspect.angle.toFixed(2)}°</span>
         </TableCell>
         <TableCell className="px-6 py-4 text-center">
           <span className={`text-sm ${aspect.orb < 1 ? 'text-green-600 font-semibold' : 'text-gray-600'}`}>
@@ -104,7 +110,7 @@ export default function AspectsTable({ aspects }: AspectsTableProps) {
   return (
     <Tabs defaultValue="all" className="w-full">
       <TabsList className="grid w-full grid-cols-4">
-        <TabsTrigger value="all">Всички ({aspects.length})</TabsTrigger>
+        <TabsTrigger value="all">Аспекти към натал ({aspects.length})</TabsTrigger>
         <TabsTrigger value="planets">Планети ({planetToPlanet.length})</TabsTrigger>
         <TabsTrigger value="houses">Домове ({planetToHouse.length})</TabsTrigger>
         <TabsTrigger value="angles">Ъгли ({planetToAngle.length})</TabsTrigger>
