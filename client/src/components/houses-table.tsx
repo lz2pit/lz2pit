@@ -10,6 +10,7 @@ interface House {
   degree: number;
   minutes: number;
   seconds: number;
+  name?: string; // Ново поле за правилното име на дома
 }
 
 interface HousesTableProps {
@@ -70,36 +71,51 @@ export default function HousesTable({ houses }: HousesTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y divide-gray-200">
-            {sortedHouses.map(([houseName, houseData]) => (
-              <TableRow key={houseName} className="hover:bg-gray-50 transition-colors">
-                <TableCell className="px-6 py-4 font-medium">
-                  {houseName}
-                </TableCell>
-                <TableCell className="px-6 py-4">
-                  <div className="flex items-center space-x-2">
-                    <span
-                      className="text-2xl symbol-font"
-                      style={{ color: getSignColor(houseData.sign.name) }}
-                    >
-                      {houseData.sign.symbol}
-                    </span>
-                    <span className="font-medium">{houseData.sign.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4">
-                  <span className="font-mono text-gray-700">
-                    {houseData.degree}° {String(houseData.minutes).padStart(2, '0')}' {String(houseData.seconds).padStart(2, '0')}"
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
+            {sortedHouses.map(([houseName, houseData]) => {
+              // Използваме правилното име на дома ако е налично
+              const displayName = houseData.name || houseName;
+              
+              return (
+                <TableRow key={houseName} className="hover:bg-gray-50 transition-colors">
+                  <TableCell className="px-6 py-4 font-medium">
+                    {displayName}
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
+                    {houseData.sign ? (
+                      <div className="flex items-center space-x-2">
+                        <span
+                          className="text-2xl symbol-font"
+                          style={{ color: getSignColor(houseData.sign.name) }}
+                        >
+                          {houseData.sign.symbol}
+                        </span>
+                        <span className="font-medium">{houseData.sign.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
+                    {typeof houseData.degree === 'number' &&
+                     typeof houseData.minutes === 'number' &&
+                     typeof houseData.seconds === 'number' ? (
+                      <span className="font-mono text-gray-700">
+                        {houseData.degree}° {String(houseData.minutes).padStart(2, '0')}' {String(houseData.seconds).padStart(2, '0')}"
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
 
       <div className="mt-4 grid md:grid-cols-2 gap-4 text-sm text-gray-600">
         <div className="bg-blue-50 rounded-lg p-4">
-          <h4 className="font-semibold mb-2 text-blue-800">Ъглови домове (1, 4, 7, 10)</h4>
+          <h4 className="font-semibold mb-2 text-blue-800">Ъглови домове (ASC, IC, DSC, MC)</h4>
           <p>Най-силните домове, свързани с личността, дома, партньорствата и кариерата.</p>
         </div>
         <div className="bg-green-50 rounded-lg p-4">
@@ -112,7 +128,7 @@ export default function HousesTable({ houses }: HousesTableProps) {
         </div>
         <div className="bg-orange-50 rounded-lg p-4">
           <h4 className="font-semibold mb-2 text-orange-800">Системата на домовете</h4>
-          <p>Използва се системата на Плацидус за изчисляване на домовете.</p>
+          <p>Използва се системата на Плацидус за изчисляване на домовете. Домовете са показани като: ASC,2,3,IC,5,6,DSC,8,9,MC,11,12</p>
         </div>
       </div>
     </div>

@@ -145,14 +145,14 @@ class AstrologyCalculator {
       const houses = swisseph.swe_houses(julianDay, lat, lon, 'P');
       console.log("Houses calculated:", houses);
       
-      // Форматираме данните за домовете
+      // Форматираме данните за домовете с правилните имена
       const houseData = {};
       if (houses && houses.house) {
         for (let i = 0; i < 12; i++) {
           const houseNumber = i + 1;
           let houseName;
           
-          // Специални имена за ъглови домове
+          // Специални имена за ъглови домове според изискванията: ASC,2,3,IC,5,6,DSC,8,9,MC,11,12
           if (houseNumber === 1) houseName = "ASC";
           else if (houseNumber === 4) houseName = "IC";
           else if (houseNumber === 7) houseName = "DSC";
@@ -171,7 +171,7 @@ class AstrologyCalculator {
             degree,
             minutes,
             seconds,
-            name: houseName
+            name: houseName  // Това ще се използва за показване в таблицата
           };
         }
       }
@@ -225,17 +225,23 @@ class AstrologyCalculator {
               motionType = 'S'; // Stationary
             }
             
-            // Симулирани магнитуди за видимите планети
+            // Магнитуди за всички планети (приблизителни стойности)
             let magnitude = "—";
-            const visiblePlanets = {
-              'Венера': -4.2,
-              'Марс': -2.9,
-              'Юпитер': -2.7,
-              'Сатурн': -0.5
+            const planetMagnitudes = {
+              'Слънце': -26.7,    // Много ярко, но можем да покажем стойността
+              'Луна': -12.6,      // Променлива, средна стойност
+              'Меркурий': -0.4,   // Променлива, средна стойност
+              'Венера': -4.2,     // Най-ярката планета
+              'Марс': -2.9,       // Променлива, средна стойност
+              'Юпитер': -2.7,     // Много ярка
+              'Сатурн': -0.5,     // Променлива, средна стойност
+              'Уран': 5.5,        // Слабо видима
+              'Нептун': 7.8,      // Невидима с просто око
+              'Плутон': 14.0      // Много слаба, нужен телескоп
             };
             
-            if (name in visiblePlanets) {
-              magnitude = visiblePlanets[name].toFixed(1);
+            if (name in planetMagnitudes) {
+              magnitude = planetMagnitudes[name].toFixed(1);
             }
             
             // Определяме в кой дом е планетата
@@ -273,31 +279,9 @@ class AstrologyCalculator {
         }
       }
 
-      // Добавяме Асцендент и MC
-      if (houses) {
-        const ascendant = houses.ascendant || 0;
-        const mc = houses.mc || 0;
-        
-        planets["Асцендент"] = {
-          longitude: ascendant,
-          sign: this.getZodiacSign(ascendant),
-          degree: Math.floor(ascendant % 30),
-          minutes: Math.floor((ascendant % 1) * 60),
-          seconds: Math.round((((ascendant % 1) * 60) % 1) * 60),
-          house: 1,
-          symbol: "ASC"
-        };
-        
-        planets["MC"] = {
-          longitude: mc,
-          sign: this.getZodiacSign(mc),
-          degree: Math.floor(mc % 30),
-          minutes: Math.floor((mc % 1) * 60),
-          seconds: Math.round((((mc % 1) * 60) % 1) * 60),
-          house: 10,
-          symbol: "MC"
-        };
-      }
+      // НЕ добавяме Асцендент и MC в planets обекта 
+      // защото те не са планети и не трябва да се показват в "Позиции на Планетите"
+      // Те ще се добавят само в houses обекта
 
       return {
         birthData: {
