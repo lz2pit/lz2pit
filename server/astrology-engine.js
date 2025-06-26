@@ -645,6 +645,14 @@ class AstrologyCalculator {
                 natalDisplay = natalPoint;
               } else if (planetSymbols[natalPoint]) {
                 natalDisplay = planetSymbols[natalPoint];
+              } else if (natalPoint.startsWith("Дом ")) {
+                // Конвертираме "Дом X" в правилния формат
+                const houseNum = parseInt(natalPoint.replace("Дом ", ""));
+                if (houseNum === 1) natalDisplay = "ASC";
+                else if (houseNum === 4) natalDisplay = "IC";
+                else if (houseNum === 7) natalDisplay = "DSC";
+                else if (houseNum === 10) natalDisplay = "MC";
+                else natalDisplay = houseNum.toString();
               }
               
               // Форматираме прогресивната планета
@@ -751,7 +759,17 @@ class AstrologyCalculator {
       // Добавяме върховете на домовете
       if (houses && houses.house) {
         for (let i = 0; i < 12; i++) {
-          natalPoints[`Дом ${i + 1}`] = houses.house[i];
+          const houseNumber = i + 1;
+          let houseName;
+          
+          // Специални имена за ъглови домове според изискванията
+          if (houseNumber === 1) houseName = "ASC";
+          else if (houseNumber === 4) houseName = "IC";
+          else if (houseNumber === 7) houseName = "DSC";
+          else if (houseNumber === 10) houseName = "MC";
+          else houseName = houseNumber.toString();
+          
+          natalPoints[houseName] = houses.house[i];
         }
       }
       
@@ -820,7 +838,7 @@ class AstrologyCalculator {
                     transitPlanet: transitPlanet,
                     aspect: aspect.symbol,
                     natalPoint: natalPoint,
-                    orb: diff.toFixed(1),
+                    orb: diff.toFixed(2),
                     description: this.getTransitDescription(transitPlanet, aspect.name, natalPoint)
                   });
                   break;
@@ -852,7 +870,7 @@ class AstrologyCalculator {
                   transitPlanet: "Венера",
                   aspect: aspect.symbol,
                   natalPoint: natalPoint,
-                  orb: diff.toFixed(1),
+                  orb: diff.toFixed(2),
                   description: this.getTransitDescription("Венера", aspect.name, natalPoint)
                 });
                 break;
@@ -883,7 +901,7 @@ class AstrologyCalculator {
                   transitPlanet: "Марс",
                   aspect: aspect.symbol,
                   natalPoint: natalPoint,
-                  orb: diff.toFixed(1),
+                  orb: diff.toFixed(2),
                   description: this.getTransitDescription("Марс", aspect.name, natalPoint)
                 });
                 break;
@@ -908,7 +926,7 @@ class AstrologyCalculator {
                   transitPlanet: "Меркурий",
                   aspect: aspect.symbol,
                   natalPoint: natalPoint,
-                  orb: diff.toFixed(1),
+                  orb: diff.toFixed(2),
                   description: this.getTransitDescription("Меркурий", aspect.name, natalPoint),
                   isRetrograde: true
                 });
