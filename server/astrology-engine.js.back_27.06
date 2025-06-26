@@ -19,141 +19,6 @@ class AstrologyCalculator {
     // Инициализация
   }
 
-  // ========================================
-  // ENHANCED TIMEZONE AND DST CALCULATION
-  // ========================================
-  getTimezoneOffset(date, country) {
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    
-    function getLastSundayOfMonth(year, month) {
-      const lastDay = new Date(year, month, 0);
-      const lastSunday = lastDay.getDate() - lastDay.getDay();
-      return lastSunday;
-    }
-    
-    function isEuropeanDST(year, month, day) {
-      if (month < 3 || month > 10) return false;
-      if (month > 3 && month < 10) return true;
-      
-      const lastSundayMarch = getLastSundayOfMonth(year, 3);
-      const lastSundayOctober = getLastSundayOfMonth(year, 10);
-      
-      if (month === 3) return day >= lastSundayMarch;
-      if (month === 10) return day < lastSundayOctober;
-      
-      return false;
-    }
-    
-    function isUSDST(year, month, day) {
-      if (year < 2007) {
-        if (month < 4 || month > 10) return false;
-        if (month > 4 && month < 10) return true;
-        
-        if (month === 4) {
-          const firstSunday = 7 - new Date(year, 3, 1).getDay();
-          return day >= firstSunday;
-        }
-        if (month === 10) {
-          const lastSunday = getLastSundayOfMonth(year, 10);
-          return day < lastSunday;
-        }
-      } else {
-        if (month < 3 || month > 11) return false;
-        if (month > 3 && month < 11) return true;
-        
-        if (month === 3) {
-          const secondSunday = 14 - new Date(year, 2, 1).getDay();
-          return day >= secondSunday;
-        }
-        if (month === 11) {
-          const firstSunday = 7 - new Date(year, 10, 1).getDay();
-          return day < firstSunday;
-        }
-      }
-      return false;
-    }
-    
-    const countryLower = country.toLowerCase();
-    
-    // България: EET (UTC+2) / EEST (UTC+3)
-    if (countryLower === 'bulgaria' || countryLower === 'българия') {
-      if (year >= 1979) {
-        return isEuropeanDST(year, month, day) ? 3 : 2;
-      } else {
-        return 2;
-      }
-    }
-    
-    // Германия: CET (UTC+1) / CEST (UTC+2)
-    else if (countryLower === 'germany' || countryLower === 'германия') {
-      return isEuropeanDST(year, month, day) ? 2 : 1;
-    }
-    
-    // Франция: CET (UTC+1) / CEST (UTC+2)
-    else if (countryLower === 'france' || countryLower === 'франция') {
-      return isEuropeanDST(year, month, day) ? 2 : 1;
-    }
-    
-    // UK: GMT (UTC+0) / BST (UTC+1)
-    else if (countryLower === 'uk' || countryLower === 'великобритания') {
-      return isEuropeanDST(year, month, day) ? 1 : 0;
-    }
-    
-    // САЩ: EST (UTC-5) / EDT (UTC-4)
-    else if (countryLower === 'usa' || countryLower === 'сащ') {
-      return isUSDST(year, month, day) ? -4 : -5;
-    }
-    
-    // Русия: MSK (UTC+3) - без DST от 2014
-    else if (countryLower === 'russia' || countryLower === 'русия') {
-      if (year < 2014) {
-        return isEuropeanDST(year, month, day) ? 4 : 3;
-      } else {
-        return 3;
-      }
-    }
-    
-    // Гърция: EET (UTC+2) / EEST (UTC+3)
-    else if (countryLower === 'greece' || countryLower === 'гърция') {
-      return isEuropeanDST(year, month, day) ? 3 : 2;
-    }
-    
-    // Турция: TRT (UTC+3) - без DST от 2016
-    else if (countryLower === 'turkey' || countryLower === 'турция') {
-      if (year < 2016) {
-        return isEuropeanDST(year, month, day) ? 3 : 2;
-      } else {
-        return 3;
-      }
-    }
-    
-    // По подразбиране България
-    else {
-      if (year >= 1979) {
-        return isEuropeanDST(year, month, day) ? 3 : 2;
-      } else {
-        return 2;
-      }
-    }
-  }
-
-  getDSTName(country, isDST) {
-    const dstNames = {
-      'bulgaria': isDST ? 'EEST (Източно европейско лятно време)' : 'EET (Източно европейско време)',
-      'германия': isDST ? 'CEST (Централно европейско лятно време)' : 'CET (Централно европейско време)',
-      'франция': isDST ? 'CEST (Централно европейско лятно време)' : 'CET (Централно европейско време)',
-      'великобритания': isDST ? 'BST (Британско лятно време)' : 'GMT (Гринуич)',
-      'сащ': isDST ? 'EDT (Източно лятно време)' : 'EST (Източно стандартно време)',
-      'русия': 'MSK (Московско време - постоянно)',
-      'гърция': isDST ? 'EEST (Източно европейско лятно време)' : 'EET (Източно европейско време)',
-      'турция': 'TRT (Турско време - постоянно)'
-    };
-    
-    return dstNames[country.toLowerCase()] || (isDST ? 'EEST (Лятно време)' : 'EET (Зимно време)');
-  }
-
   // Функция за получаване на координати (ПОПРАВЕНА!)
   async getCoordinates(city, country = "България") {
     console.log(`getCoordinates called with city: ${city}`);
@@ -245,12 +110,11 @@ class AstrologyCalculator {
     return filtered.slice(0, 10);
   }
 
-  // Основна функция за изчисляване на натална карта (ОБНОВЕНА!)
-  async calculateNatalChart(birthData, coordinates, settings = {}) {
+  // Основна функция за изчисляване на натална карта
+  async calculateNatalChart(birthData, coordinates) {
     try {
       console.log("Calculating natal chart with data:", birthData);
       console.log("Using coordinates:", coordinates);
-      console.log("Settings:", settings);
       
       // Парсваме датата на раждане
       let year, month, day, hour, minute, second;
@@ -263,25 +127,10 @@ class AstrologyCalculator {
         year = birthData.year; month = birthData.month; day = birthData.day;
         hour = birthData.hour; minute = birthData.minute; second = birthData.second || 0;
       }
-
-      // Създаваме дата за изчисляване на часовата зона
-      const birthDate = new Date(year, month - 1, day, hour, minute, second);
-      const country = birthData.country || coordinates.country || "България";
       
-      // ИЗЧИСЛЯВАМЕ АВТОМАТИЧНО ЧАСОВАТА ЗОНА
-      const timezoneOffset = this.getTimezoneOffset(birthDate, country);
-      const isDST = timezoneOffset !== this.getTimezoneOffset(new Date(year, 0, 15), country);
-      const timezoneName = this.getDSTName(country, isDST);
-      
-      console.log(`=== TIMEZONE CALCULATION ===`);
-      console.log(`Birth date: ${birthDate.toLocaleDateString()}`);
-      console.log(`Country: ${country}`);
-      console.log(`Timezone offset: UTC${timezoneOffset >= 0 ? '+' : ''}${timezoneOffset}`);
-      console.log(`Is DST: ${isDST}`);
-      console.log(`Timezone name: ${timezoneName}`);
-      
-      // Изчисляваме UTC времето ПРАВИЛНО
-      const utHour = hour - timezoneOffset + minute / 60 + second / 3600;
+      // Изчисляваме UTC времето
+      const timezone = 2; // EET for Bulgaria
+      const utHour = hour - timezone + minute / 60 + second / 3600;
       const julianDay = swisseph.swe_julday(year, month, day, utHour, swisseph.SE_GREG_CAL);
       
       console.log("Julian Day:", julianDay);
@@ -292,24 +141,8 @@ class AstrologyCalculator {
       
       console.log("Using lat/lon:", lat, lon);
       
-      // Определяме системата за домове от настройките
-      const houseSystem = settings.houseSystem || 'placidus';
-      let houseSystemCode = 'P'; // Placidus по подразбиране
-      
-      switch(houseSystem.toLowerCase()) {
-        case 'koch': houseSystemCode = 'K'; break;
-        case 'equal': houseSystemCode = 'E'; break;
-        case 'whole': houseSystemCode = 'W'; break;
-        case 'regiomontanus': houseSystemCode = 'R'; break;
-        case 'campanus': houseSystemCode = 'C'; break;
-        case 'topocentric': houseSystemCode = 'T'; break;
-        default: houseSystemCode = 'P'; // Placidus
-      }
-      
-      console.log(`Using house system: ${houseSystem} (${houseSystemCode})`);
-      
       // Изчисляваме домовете
-      const houses = swisseph.swe_houses(julianDay, lat, lon, houseSystemCode);
+      const houses = swisseph.swe_houses(julianDay, lat, lon, 'P');
       console.log("Houses calculated:", houses);
       
       // Форматираме данните за домовете с правилните имена
@@ -461,18 +294,6 @@ class AstrologyCalculator {
           second
         },
         coordinates,
-        // ДОБАВЯМЕ ИНФОРМАЦИЯ ЗА ЧАСОВАТА ЗОНА
-        timezone: {
-          offset: timezoneOffset,
-          isDST: isDST,
-          name: timezoneName,
-          country: country
-        },
-        // ДОБАВЯМЕ НАСТРОЙКИ
-        settings: {
-          houseSystem: houseSystem,
-          zodiacType: settings.zodiacType || 'tropical'
-        },
         planets,
         houses: houseData,
         aspects: this.calculateAspects(planets, houseData)
@@ -634,7 +455,7 @@ class AstrologyCalculator {
     return aspects;
   }
 
-  // ФУНКЦИЯ ЗА ПРОГРЕСИИ (ОБНОВЕНА С DST!)
+  // ФУНКЦИЯ ЗА ПРОГРЕСИИ (ПОПРАВЕНА!)
   calculateProgressions(birthData, coordinates, forecastDate) {
     try {
       console.log("=== CALCULATING PROGRESSIONS ===");
@@ -652,14 +473,10 @@ class AstrologyCalculator {
         year = birthData.year; month = birthData.month; day = birthData.day;
         hour = birthData.hour; minute = birthData.minute; second = birthData.second || 0;
       }
-
-      // ИЗПОЛЗВАМЕ АВТОМАТИЧНО ИЗЧИСЛЯВАНЕ НА ЧАСОВАТА ЗОНА
-      const birthDate = new Date(year, month - 1, day, hour, minute, second);
-      const country = birthData.country || coordinates.country || "България";
-      const timezoneOffset = this.getTimezoneOffset(birthDate, country);
       
-      // Изчисляваме наталния Julian Day с правилна часова зона
-      const utHour = hour - timezoneOffset + minute / 60 + second / 3600;
+      // Изчисляваме наталния Julian Day
+      const timezone = 2;
+      const utHour = hour - timezone + minute / 60 + second / 3600;
       const natalJD = swisseph.swe_julday(year, month, day, utHour, swisseph.SE_GREG_CAL);
       
       // Парсваме датата на прогнозата
@@ -676,7 +493,6 @@ class AstrologyCalculator {
       console.log(`Forecast JD: ${forecastJD}`);
       console.log(`Days difference: ${daysDifference}`);
       console.log(`Progressed JD: ${progressedJD}`);
-      console.log(`Timezone offset used: UTC${timezoneOffset >= 0 ? '+' : ''}${timezoneOffset}`);
       
       // Координати
       const lat = coordinates.lat || coordinates.latitude || 43.4167;
@@ -890,14 +706,10 @@ class AstrologyCalculator {
         year = birthData.year; month = birthData.month; day = birthData.day;
         hour = birthData.hour; minute = birthData.minute; second = birthData.second || 0;
       }
-
-      // ИЗПОЛЗВАМЕ АВТОМАТИЧНО ИЗЧИСЛЯВАНЕ НА ЧАСОВАТА ЗОНА
-      const birthDate = new Date(year, month - 1, day, hour, minute, second);
-      const country = birthData.country || coordinates.country || "България";
-      const timezoneOffset = this.getTimezoneOffset(birthDate, country);
       
-      // Изчисляваме наталните позиции с правилна часова зона
-      const utHour = hour - timezoneOffset + minute / 60 + second / 3600;
+      // Изчисляваме наталните позиции
+      const timezone = 2; // EET
+      const utHour = hour - timezone + minute / 60 + second / 3600;
       const natalJD = swisseph.swe_julday(year, month, day, utHour, swisseph.SE_GREG_CAL);
       
       // Изчисляваме домовете за наталната карта
@@ -1119,7 +931,6 @@ class AstrologyCalculator {
       
       console.log("=== FORECAST RESULT ===");
       console.log(`Total days processed: ${forecastArray.length}`);
-      console.log(`Timezone offset used: UTC${timezoneOffset >= 0 ? '+' : ''}${timezoneOffset}`);
       forecastArray.forEach(day => {
         if (day.progressions.length > 0) {
           console.log(`${day.date}: ${day.progressions.length} progressions`);
