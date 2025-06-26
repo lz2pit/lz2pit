@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { TrendingUp, Download } from "lucide-react";
 import type { NatalChartData, Coordinates } from "@shared/schema";
-import { getPlanetColor, getPlanetSymbol, getAspectSymbol } from "@/lib/astrology-utils";
+import { getPlanetColor, getPlanetSymbol, getAspectSymbol, getAspectColor } from "@/lib/astrology-utils";
 
 interface ForecastSectionProps {
   natalData: NatalChartData;
@@ -31,10 +31,11 @@ interface DayForecast {
 interface Transit {
   transitPlanet: string;
   aspect: string;
-  symbol: string;
+  symbol?: string;
   natalPoint: string;
   orb: string;
   isRetrograde?: boolean;
+  isProgression?: boolean;
 }
 
 export default function ForecastSection({
@@ -48,30 +49,72 @@ export default function ForecastSection({
   const { toast } = useToast();
   const [forecastData, setForecastData] = useState<DayForecast[]>([]);
 
+  // Calculate forecast mutation
   const calculateForecast = useMutation({
     mutationFn: async (data: { birthData: any; coordinates: any; startDate: string; endDate: string }) => {
+      console.log("=== CLIENT: Sending forecast request ===");
+      console.log("Data:", data);
+      
       const response = await apiRequest("POST", "/api/calculate-forecast", data);
-      return response.json();
+      const result = await response.json();
+      
+      console.log("=== CLIENT: Received forecast response ===");
+      console.log("Success:", result.success);
+      console.log("Data length:", result.data?.length);
+      if (result.data && result.data.length > 0) {
+        console.log("First day sample:", result.data[0]);
+        result.data.forEach((day: DayForecast, index: number) => {
+          console.log(`Day ${index + 1} (${day.date}):`, {
+            progressions: day.progressions?.length || 0,
+            outerPlanets: day.outerPlanets?.length || 0,
+            venus: day.venus?.length || 0,
+            mars: day.mars?.length || 0,
+            mercuryRetro: day.mercuryRetro?.length || 0
+          });
+        });
+      }
+      
+      return result;
     },
     onSuccess: (result) => {
-      if (result.success) {
-        const filteredData = result.data.filter((day: DayForecast) =>
-          (day.progressions && day.progressions.length > 0) ||
-          (day.outerPlanets && day.outerPlanets.length > 0) ||
-          (day.venus && day.venus.length > 0) ||
-          (day.mars && day.mars.length > 0) ||
-          (day.mercuryRetro && day.mercuryRetro.length > 0)
+      console.log("=== CLIENT: Processing success ===");
+      if (result.success && result.data) {
+        // Ensure all data is properly structured
+        const safeData = (result.data || []).map((day: any) => ({
+          date: day.date || '',
+          progressions: Array.isArray(day.progressions) ? day.progressions : [],
+          outerPlanets: Array.isArray(day.outerPlanets) ? day.outerPlanets : [],
+          venus: Array.isArray(day.venus) ? day.venus : [],
+          mars: Array.isArray(day.mars) ? day.mars : [],
+          mercuryRetro: Array.isArray(day.mercuryRetro) ? day.mercuryRetro : []
+        }));
+
+        // Filter out days with no aspects in any column
+        const filteredData = safeData.filter((day: DayForecast) =>
+          day.progressions.length > 0 ||
+          day.outerPlanets.length > 0 ||
+          day.venus.length > 0 ||
+          day.mars.length > 0 ||
+          day.mercuryRetro.length > 0
         );
+        
+        console.log("=== CLIENT: Filtered data ===");
+        console.log("Filtered length:", filteredData.length);
+        filteredData.forEach((day, index) => {
+          console.log(`Filtered day ${index + 1}:`, day);
+        });
+        
         setForecastData(filteredData);
         toast({
           title: "Успех!",
-          description: "Прогнозата е изчислена успешно.",
+          description: `Прогнозата е изчислена успешно. Намерени ${filteredData.length} дни с аспекти.`,
         });
       } else {
-        throw new Error(result.error);
+        throw new Error(result.error || "Няма данни от сървъра");
       }
     },
     onError: (error) => {
+      console.error("=== CLIENT: Forecast error ===", error);
       toast({
         title: "Грешка",
         description: `Възникна грешка при изчисляването на прогнозата: ${error.message}`,
@@ -107,50 +150,147 @@ export default function ForecastSection({
     });
   };
 
-  const renderTransit = (transit: Transit) => {
-    if (!transit || !transit.transitPlanet || !transit.natalPoint) return null;
+  const handleExportToPDF = async () => {
+    if (forecastData.length === 0) {
+      toast({
+        title: "Грешка",
+        description: "Няма данни за експорт. Моля първо изчислете прогнозата.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    const isHouse = transit.natalPoint.startsWith("Дом");
-    const isAngle = ["Асцендент", "MC", "Десцендент", "IC"].includes(transit.natalPoint);
+    try {
+      const response = await apiRequest("POST", "/api/export-forecast-pdf", {
+        forecastData,
+        startDate,
+        endDate,
+        birthData: natalData.birthData
+      });
 
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = url;
+        a.download = `prognoza-${startDate}-${endDate}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        toast({
+          title: "Успех!",
+          description: "PDF файлът е изтеглен успешно.",
+        });
+      } else {
+        throw new Error("Грешка при генериране на PDF");
+      }
+    } catch (error) {
+      toast({
+        title: "Грешка",
+        description: `Възникна грешка при експорта в PDF: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const renderTransit = (transit: any) => {
+    console.log("=== Rendering transit ===", transit);
+    
+    // Проверяваме дали transit съществува
+    if (!transit) {
+      return <span className="text-gray-400">—</span>;
+    }
+    
+    // Опитваме се да извлечем данните по различни начини
+    const transitPlanet = transit.transitPlanet || transit.progressed || transit.planet || "?";
+    const aspect = transit.aspect || transit.symbol || "?";
+    const natalPoint = transit.natalPoint || transit.natal || "?";
+    const rawOrb = transit.orb || "";
+    const isRetrograde = transit.isRetrograde || false;
+    
+    // Форматираме орбиса до 2 знака след запетайката
+    let formattedOrb = "";
+    if (rawOrb) {
+      const orbNumber = parseFloat(rawOrb.toString().replace("°", ""));
+      if (!isNaN(orbNumber)) {
+        formattedOrb = orbNumber.toFixed(2);
+      }
+    }
+    
+    console.log("Extracted data:", { transitPlanet, aspect, natalPoint, rawOrb, formattedOrb, isRetrograde });
+    
+    const isHouse = natalPoint?.toString().match(/^\d+$/) || 
+                   ["ASC", "IC", "DSC", "MC"].includes(natalPoint);
+    
+    // Определяме символа на аспекта - подобрена логика
+    let aspectSymbol = aspect;
+    if (aspect === "☌" || aspect === "⚹" || aspect === "□" || aspect === "△" || aspect === "☍") {
+      aspectSymbol = aspect; // Вече е символ
+    } else {
+      aspectSymbol = getAspectSymbol(aspect) || aspect;
+    }
+    
+    // Определяме символа на планетата - подобрена логика
+    let planetSymbol = transitPlanet;
+    const planetGlyphs = ["☉", "☽", "☿", "♀", "♂", "♃", "♄", "♅", "♆", "♇"];
+    if (planetGlyphs.includes(transitPlanet)) {
+      planetSymbol = transitPlanet; // Вече е глиф
+    } else {
+      planetSymbol = getPlanetSymbol(transitPlanet) || transitPlanet;
+    }
+    
+    // Определяме символа на наталната точка
+    let natalSymbol = natalPoint;
+    if (isHouse) {
+      natalSymbol = natalPoint; // За домове и ъгли оставяме текста
+    } else if (planetGlyphs.includes(natalPoint)) {
+      natalSymbol = natalPoint; // Вече е глиф
+    } else {
+      natalSymbol = getPlanetSymbol(natalPoint) || natalPoint;
+    }
+    
+    console.log("Final symbols:", { planetSymbol, aspectSymbol, natalSymbol });
+    
     return (
-      <div className="mb-1">
+      <div className="mb-1 flex items-center gap-1">
         <span
-          className="text-lg symbol-font mr-1"
-          style={{ color: getPlanetColor(transit.transitPlanet) }}
+          className="text-lg symbol-font"
+          style={{ color: getPlanetColor(transitPlanet) }}
+          title={transitPlanet}
         >
-          {getPlanetSymbol(transit.transitPlanet)}
-          {transit.isRetrograde && <span className="text-xs text-red-600 font-bold">R</span>}
+          {planetSymbol}
+          {isRetrograde && <span className="text-xs text-red-600 font-bold">R</span>}
         </span>
-        <span className="text-lg mx-1" style={{ color: getAspectColor(transit.aspect) }}>
-          {getAspectSymbol(transit.aspect)}
+        <span 
+          className="text-lg mx-1" 
+          style={{ color: getAspectColor(aspect) }}
+          title={aspect}
+        >
+          {aspectSymbol}
         </span>
-        {isHouse || isAngle ? (
-          <span className="text-purple-600 font-medium">{transit.natalPoint}</span>
+        {isHouse ? (
+          <span className="text-purple-600 font-medium text-sm" title={`Дом/Ъгъл: ${natalPoint}`}>
+            {natalSymbol}
+          </span>
         ) : (
-          <>
-            <span
-              className="text-lg symbol-font ml-1"
-              style={{ color: getPlanetColor(transit.natalPoint) }}
-            >
-              {getPlanetSymbol(transit.natalPoint)}
-            </span>
-            {/* Името е скрито според изискването */}
-          </>
+          <span
+            className="text-lg symbol-font"
+            style={{ color: getPlanetColor(natalPoint) }}
+            title={natalPoint}
+          >
+            {natalSymbol}
+          </span>
+        )}
+        {formattedOrb && (
+          <span className="text-xs text-gray-500 ml-1">
+            ({formattedOrb}°)
+          </span>
         )}
       </div>
     );
-  };
-
-  const getAspectColor = (aspect: string): string => {
-    const colors: Record<string, string> = {
-      "Съвпад": "#ff0000",
-      "Опозиция": "#ff6600",
-      "Квадратура": "#ff9900",
-      "Тригон": "#0066ff",
-      "Секстил": "#00cc00"
-    };
-    return colors[aspect] || "#666666";
   };
 
   return (
@@ -195,51 +335,7 @@ export default function ForecastSection({
 
         {forecastData.length > 0 && (
           <Button
-            onClick={async () => {
-              if (forecastData.length === 0) {
-                toast({
-                  title: "Грешка",
-                  description: "Няма данни за експорт. Моля първо изчислете прогнозата.",
-                  variant: "destructive",
-                });
-                return;
-              }
-
-              try {
-                const response = await apiRequest("POST", "/api/export-forecast-pdf", {
-                  forecastData,
-                  startDate,
-                  endDate,
-                  birthData: natalData.birthData
-                });
-
-                if (response.ok) {
-                  const blob = await response.blob();
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.style.display = "none";
-                  a.href = url;
-                  a.download = `prognoza-${startDate}-${endDate}.pdf`;
-                  document.body.appendChild(a);
-                  a.click();
-                  window.URL.revokeObjectURL(url);
-                  document.body.removeChild(a);
-
-                  toast({
-                    title: "Успех!",
-                    description: "PDF файлът е изтеглен успешно.",
-                  });
-                } else {
-                  throw new Error("Грешка при генериране на PDF");
-                }
-              } catch (error: any) {
-                toast({
-                  title: "Грешка",
-                  description: `Възникна грешка при експорта в PDF: ${error.message}`,
-                  variant: "destructive",
-                });
-              }
-            }}
+            onClick={handleExportToPDF}
             variant="outline"
             className="px-6 py-4 border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold transition-all duration-300"
           >
@@ -248,6 +344,13 @@ export default function ForecastSection({
           </Button>
         )}
       </div>
+
+      {/* Debug информация */}
+      {calculateForecast.isPending && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-blue-800">🔄 Изчисляване на прогнозата...</p>
+        </div>
+      )}
 
       {forecastData.length > 0 && (
         <div className="bg-white rounded-2xl shadow-lg overflow-x-auto">
@@ -258,53 +361,164 @@ export default function ForecastSection({
                   Дата
                 </TableHead>
                 <TableHead className="px-4 py-4 text-left font-semibold text-white">
-                  Прогресии
+                  Прогресии<br/>
+                  <span className="text-xs font-normal">(всички прогресивни планети)</span>
                 </TableHead>
                 <TableHead className="px-4 py-4 text-left font-semibold text-white">
-                  Външни планети
+                  Външни планети<br/>
+                  <span className="text-xs font-normal">(♃ ♄ ♅ ♆ ♇ - всички аспекти)</span>
                 </TableHead>
                 <TableHead className="px-4 py-4 text-left font-semibold text-white">
-                  Венера
+                  Венера<br/>
+                  <span className="text-xs font-normal">(☌ ⚹ △)</span>
                 </TableHead>
                 <TableHead className="px-4 py-4 text-left font-semibold text-white">
-                  Марс
+                  Марс<br/>
+                  <span className="text-xs font-normal">(☌ □ ☍)</span>
                 </TableHead>
                 <TableHead className="px-4 py-4 text-left font-semibold text-white">
-                  Меркурий ретро
+                  Меркурий R<br/>
+                  <span className="text-xs font-normal">(само ретрограден)</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
-
-            <TableBody>
-              {forecastData.map((day) => (
-                <TableRow key={day.date} className="hover:bg-gray-50">
-                  <TableCell className="whitespace-nowrap font-semibold text-gray-700 px-4 py-4">
-                    {day.date}
+            <TableBody className="divide-y divide-gray-200">
+              {forecastData.map((dayForecast, index) => (
+                <TableRow key={index} className="hover:bg-gray-50 transition-colors">
+                  <TableCell className="px-4 py-4 font-medium align-top whitespace-nowrap">
+                    {new Date(dayForecast.date).toLocaleDateString("bg-BG", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric"
+                    })}
                   </TableCell>
-
-                  <TableCell className="max-w-[150px] min-w-[150px] px-4 py-4 align-top">
-                    {day.progressions?.map(renderTransit)}
+                  <TableCell className="px-4 py-4 align-top">
+                    {(dayForecast.progressions || []).length > 0 ? (
+                      <div className="space-y-1">
+                        {(dayForecast.progressions || []).map((transit, idx) => (
+                          <div key={idx}>{renderTransit(transit)}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </TableCell>
-
-                  <TableCell className="max-w-[150px] min-w-[150px] px-4 py-4 align-top">
-                    {day.outerPlanets?.map(renderTransit)}
+                  <TableCell className="px-4 py-4 align-top">
+                    {(dayForecast.outerPlanets || []).length > 0 ? (
+                      <div className="space-y-1">
+                        {(dayForecast.outerPlanets || []).map((transit, idx) => (
+                          <div key={idx}>{renderTransit(transit)}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </TableCell>
-
-                  <TableCell className="max-w-[150px] min-w-[150px] px-4 py-4 align-top">
-                    {day.venus?.map(renderTransit)}
+                  <TableCell className="px-4 py-4 align-top">
+                    {(dayForecast.venus || []).length > 0 ? (
+                      <div className="space-y-1">
+                        {(dayForecast.venus || []).map((transit, idx) => (
+                          <div key={idx}>{renderTransit(transit)}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </TableCell>
-
-                  <TableCell className="max-w-[150px] min-w-[150px] px-4 py-4 align-top">
-                    {day.mars?.map(renderTransit)}
+                  <TableCell className="px-4 py-4 align-top">
+                    {(dayForecast.mars || []).length > 0 ? (
+                      <div className="space-y-1">
+                        {(dayForecast.mars || []).map((transit, idx) => (
+                          <div key={idx}>{renderTransit(transit)}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </TableCell>
-
-                  <TableCell className="max-w-[150px] min-w-[150px] px-4 py-4 align-top">
-                    {day.mercuryRetro?.map(renderTransit)}
+                  <TableCell className="px-4 py-4 align-top">
+                    {(dayForecast.mercuryRetro || []).length > 0 ? (
+                      <div className="space-y-1">
+                        {(dayForecast.mercuryRetro || []).map((transit, idx) => (
+                          <div key={idx}>{renderTransit(transit)}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {/* Информация когато няма данни */}
+      {!calculateForecast.isPending && forecastData.length === 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+          <p className="text-gray-600 mb-2">Няма изчислена прогноза</p>
+          <p className="text-sm text-gray-500">
+            Изберете период и натиснете "Изчисли Прогноза" за да видите транзитите и прогресиите
+          </p>
+        </div>
+      )}
+
+      {/* Легенда */}
+      {forecastData.length > 0 && (
+        <div className="mt-6 bg-gray-50 p-4 rounded-lg">
+          <h4 className="font-semibold text-gray-800 mb-3">Легенда:</h4>
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <h5 className="font-medium text-gray-700 mb-2">Планети:</h5>
+              <div className="space-y-1">
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-lg symbol-font" style={{ color: getPlanetColor("Юпитер") }}>♃</span> Юпитер
+                </span>
+                <span className="inline-flex items-center gap-2 ml-4">
+                  <span className="text-lg symbol-font" style={{ color: getPlanetColor("Сатурн") }}>♄</span> Сатурн
+                </span>
+                <span className="inline-flex items-center gap-2 ml-4">
+                  <span className="text-lg symbol-font" style={{ color: getPlanetColor("Уран") }}>♅</span> Уран
+                </span>
+                <div>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="text-lg symbol-font" style={{ color: getPlanetColor("Нептун") }}>♆</span> Нептун
+                  </span>
+                  <span className="inline-flex items-center gap-2 ml-4">
+                    <span className="text-lg symbol-font" style={{ color: getPlanetColor("Плутон") }}>♇</span> Плутон
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h5 className="font-medium text-gray-700 mb-2">Аспекти:</h5>
+              <div className="space-y-1">
+                <span className="inline-flex items-center gap-2">
+                  <span style={{ color: getAspectColor("Съвпад") }}>{getAspectSymbol("Съвпад")}</span> Съвпад (0°)
+                </span>
+                <span className="inline-flex items-center gap-2 ml-4">
+                  <span style={{ color: getAspectColor("Секстил") }}>{getAspectSymbol("Секстил")}</span> Секстил (60°)
+                </span>
+                <span className="inline-flex items-center gap-2 ml-4">
+                  <span style={{ color: getAspectColor("Квадратура") }}>{getAspectSymbol("Квадратура")}</span> Квадратура (90°)
+                </span>
+                <div>
+                  <span className="inline-flex items-center gap-2">
+                    <span style={{ color: getAspectColor("Тригон") }}>{getAspectSymbol("Тригон")}</span> Тригон (120°)
+                  </span>
+                  <span className="inline-flex items-center gap-2 ml-4">
+                    <span style={{ color: getAspectColor("Опозиция") }}>{getAspectSymbol("Опозиция")}</span> Опозиция (180°)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 text-sm text-gray-600">
+            <p><span className="text-red-600 font-bold">R</span> = Ретроградна планета</p>
+            <p className="mt-1">Орбис за прогресии: 1°</p>
+            <p className="mt-1">Прогресиите се изчисляват по метода "ден за година"</p>
+          </div>
         </div>
       )}
     </div>

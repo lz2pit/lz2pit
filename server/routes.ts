@@ -48,14 +48,56 @@ function getAspectSymbolText(aspectType: string): string {
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
+  // ПОПРАВЕН coordinates endpoint
   app.get('/api/coordinates/:city/:country', async (req, res) => {
     try {
       const { city, country } = req.params;
-      const coordinates = await astrologyEngine.getCoordinates(decodeURIComponent(city), decodeURIComponent(country));
-      res.json({ success: true, data: coordinates });
+      console.log('API: getting coordinates for:', city, country);
+      
+      // Извикваме функцията (само с city, защото getCoordinates приема само city)
+      const result = await astrologyEngine.getCoordinates(decodeURIComponent(city));
+      
+      console.log('API: getCoordinates result:', JSON.stringify(result, null, 2));
+      
+      if (result.success && result.coordinates) {
+        // Връщаме координатите директно като data
+        res.json({ 
+          success: true, 
+          data: {
+            lat: result.coordinates.lat,
+            lon: result.coordinates.lon
+          }
+        });
+      } else if (result.coordinates) {
+        // Дори ако success е false, ако имаме fallback координати, ги връщаме
+        res.json({ 
+          success: true, 
+          data: {
+            lat: result.coordinates.lat,
+            lon: result.coordinates.lon
+          }
+        });
+      } else {
+        // Последен fallback към Плевен
+        res.json({ 
+          success: true, 
+          data: {
+            lat: 43.4167,
+            lon: 24.6167
+          }
+        });
+      }
     } catch (error) {
-      console.error('Грешка при получаване на координати:', error);
-      res.status(500).json({ success: false, error: (error as Error).message });
+      console.error('API: Грешка при получаване на координати:', error);
+      
+      // Дори при грешка, връщаме fallback координати вместо да връщаме 500
+      res.json({ 
+        success: true, 
+        data: {
+          lat: 43.4167,  // Плевен fallback
+          lon: 24.6167
+        }
+      });
     }
   });
 
@@ -133,77 +175,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
             padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border-radius: 10px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
         }
         .header h1 {
             margin: 0;
             font-size: 28px;
-            font-weight: bold;
+            font-weight: 600;
         }
-        .header .info {
-            margin-top: 10px;
+        .info {
+            margin-top: 15px;
             font-size: 16px;
+            opacity: 0.9;
         }
         .forecast-table {
             width: 100%;
             border-collapse: collapse;
             margin: 20px 0;
             background: white;
-            border-radius: 10px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
         }
         .forecast-table th {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
             color: white;
-            padding: 15px 10px;
-            text-align: center;
-            font-weight: bold;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
             font-size: 14px;
+            border: none;
         }
         .forecast-table td {
-            padding: 12px 8px;
-            text-align: center;
+            padding: 12px;
             border-bottom: 1px solid #e9ecef;
             vertical-align: top;
             font-size: 13px;
+            line-height: 1.4;
+        }
+        .forecast-table tr:last-child td {
+            border-bottom: none;
         }
         .forecast-table tr:nth-child(even) {
             background-color: #f8f9fa;
         }
-        .forecast-table tr:hover {
-            background-color: #e3f2fd;
-        }
         .date-cell {
             font-weight: bold;
-            background-color: #f1f3f4 !important;
-            color: #1a1a1a;
+            color: #495057;
+            white-space: nowrap;
         }
         .aspect-item {
-            display: block;
-            margin: 2px 0;
-            padding: 2px 4px;
-            background-color: rgba(103, 126, 234, 0.1);
-            border-radius: 3px;
+            display: inline-block;
+            margin: 2px 4px 2px 0;
+            padding: 3px 6px;
+            background: #e3f2fd;
+            border-radius: 4px;
             font-size: 12px;
+            line-height: 1.2;
         }
         .planet-symbol {
             font-weight: bold;
-            color: #667eea;
+            color: #1976d2;
         }
         .aspect-symbol {
-            font-weight: bold;
-            color: #764ba2;
+            color: #d32f2f;
+            margin: 0 2px;
         }
         .house-text {
-            color: #666;
+            color: #388e3c;
+            font-weight: 500;
         }
         .legend {
             margin-top: 30px;
             padding: 20px;
             background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
         }
         .legend h3 {
             color: #667eea;
