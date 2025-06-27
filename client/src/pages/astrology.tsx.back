@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Star, Calculator, User, MapPin, Clock, TrendingUp, Sparkles, Activity } from "lucide-react";
+import { Star, Calculator, User, MapPin, Clock, TrendingUp } from "lucide-react";
 import { debounce, formatDate, addMonths } from "@/lib/astrology-utils";
 import { MONTHS } from "@/lib/astrology-constants";
 import NatalChart from "@/components/natal-chart";
@@ -194,10 +194,10 @@ export default function AstrologyPage() {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 pb-12">
-        
-        {!showResults ? (
-          // ФОРМА ЗА ВЪВЕЖДАНЕ - показва се само когато няма резултати
-          <div className="max-w-2xl mx-auto">
+        <div className="grid lg:grid-cols-12 gap-8 max-w-7xl mx-auto">
+
+          {/* Input Section */}
+          <div className="lg:col-span-5">
             <Card className="bg-white/95 backdrop-blur-sm shadow-2xl border-0">
               <CardHeader>
                 <CardTitle className="text-2xl flex items-center gap-3">
@@ -378,84 +378,69 @@ export default function AstrologyPage() {
                 </form>
               </CardContent>
             </Card>
-          </div>
-        ) : (
-          // РЕЗУЛТАТИ - показват се на цял екран когато има данни
-          <div className="max-w-7xl mx-auto space-y-8">
-            
-            {/* Бутон за връщане */}
-            <div className="text-center">
-              <Button
-                onClick={() => setShowResults(false)}
-                variant="outline"
-                className="bg-white/90 backdrop-blur-sm border-2 border-blue-200 hover:bg-blue-50"
-              >
-                ← Нови изчисления
-              </Button>
-            </div>
 
-            {/* НАТАЛНА КАРТА И ТАБЛИЦИ В КОМПАКТЕН ВАРИАНТ */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              
-              {/* Натална карта и планети */}
-              <Card className="bg-white/95 backdrop-blur-sm shadow-xl border-0">
-                <CardContent className="p-6">
-                  <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <Star className="text-blue-600" size={20} />
-                    Натална Карта
-                  </h3>
-                  <NatalChart data={natalData} />
-                  
-                  <div className="mt-6">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-3">Позиции на Планетите</h4>
+            {/* Houses Table - показва се само когато има резултати */}
+            {showResults && natalData && natalData.houses && (
+              <div className="mt-8">
+                <HousesTable houses={natalData.houses} />
+              </div>
+            )}
+          </div>
+
+          {/* Results Section */}
+          <div className="lg:col-span-7">
+            {showResults && natalData ? (
+              <Card className="bg-white/95 backdrop-blur-sm shadow-2xl border-0">
+                <CardContent className="p-8">
+
+                  {/* Natal Chart */}
+                  <div className="mb-8">
+                    <h3 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-3">
+                      <Star className="text-blue-600" />
+                      Натална Карта
+                    </h3>
+                    <NatalChart data={natalData} />
+                  </div>
+
+                  {/* Planet Table */}
+                  <div className="mb-8">
+                    <h3 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-3">
+                      <Star className="text-blue-600" />
+                      Позиции на Планетите
+                    </h3>
                     <PlanetTable planets={natalData.planets} />
                   </div>
+
+                  {/* Aspects Table */}
+                  <div className="mb-8">
+                    <h3 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-3">
+                      <Star className="text-blue-600" />
+                      Аспекти
+                    </h3>
+                    <AspectsTable aspects={natalData.aspects} />
+                  </div>
+
+                  {/* Forecast Section */}
+                  <ForecastSection
+                    natalData={natalData}
+                    coordinates={coordinates}
+                    startDate={startDate}
+                    endDate={endDate}
+                    onStartDateChange={setStartDate}
+                    onEndDateChange={setEndDate}
+                  />
                 </CardContent>
               </Card>
-
-              {/* Домове */}
-              <Card className="bg-white/95 backdrop-blur-sm shadow-xl border-0">
-                <CardContent className="p-6">
-                  <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <MapPin className="text-green-600" size={20} />
-                    Домове
-                  </h3>
-                  <HousesTable houses={natalData.houses} />
-                </CardContent>
+            ) : (
+              <Card className="bg-white/95 backdrop-blur-sm shadow-2xl border-0 p-8 text-center flex flex-col items-center justify-center h-full min-h-[400px]">
+                <Calculator size={64} className="text-gray-400 mb-4" />
+                <p className="text-xl text-gray-600 font-medium">Въведете данни за раждане, за да изчислите натална карта и прогнози.</p>
               </Card>
-            </div>
-
-            {/* АСПЕКТИ СЕКЦИЯ - цял екран */}
-            <Card className="bg-white/95 backdrop-blur-sm shadow-2xl border-0">
-              <CardContent className="p-8">
-                <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
-                  <Sparkles className="text-purple-600" size={32} />
-                  ✨ Аспекти
-                </h2>
-                <AspectsTable aspects={natalData.aspects} />
-              </CardContent>
-            </Card>
-
-            {/* ПРОГНОЗА СЕКЦИЯ - цял екран */}
-            <Card className="bg-white/95 backdrop-blur-sm shadow-2xl border-0">
-              <CardContent className="p-8">
-                <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
-                  <Activity className="text-green-600" size={32} />
-                  🔮 Прогноза (Транзити)
-                </h2>
-                <ForecastSection
-                  natalData={natalData}
-                  coordinates={coordinates}
-                  startDate={startDate}
-                  endDate={endDate}
-                  onStartDateChange={setStartDate}
-                  onEndDateChange={setEndDate}
-                />
-              </CardContent>
-            </Card>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
 }
+
