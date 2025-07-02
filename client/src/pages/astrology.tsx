@@ -10,7 +10,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Star, Calculator, User, MapPin, Clock, TrendingUp, Sparkles, Activity } from "lucide-react";
 import { debounce, formatDate, addMonths } from "@/lib/astrology-utils";
 import { MONTHS } from "@/lib/astrology-constants";
-import NatalChart from "@/components/natal-chart";
+import PlacidusNatalChart from "@/components/placidus-natal-chart";
 import PlanetTable from "@/components/planet-table";
 import AspectsTable from "@/components/aspects-table";
 import ForecastSection from "@/components/forecast-section";
@@ -404,7 +404,7 @@ export default function AstrologyPage() {
                     <Star className="text-blue-600" size={20} />
                     Натална Карта
                   </h3>
-                  <NatalChart data={natalData} />
+                  <PlacidusNatalChart data={natalData} />
                   
                   <div className="mt-6">
                     <h4 className="text-lg font-semibold text-gray-800 mb-3">Позиции на Планетите</h4>
