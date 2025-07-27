@@ -1,4 +1,3 @@
-// src/lib/astrology-utils.ts
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
@@ -21,13 +20,10 @@ export function addMonths(date: Date, months: number): Date {
 }
 
 export function formatDegreeMinutesSeconds(degree: number, minutes: number, seconds: number): string {
-  return `${degree}°${minutes}'${seconds}"`;
+  return `${degree}°${minutes}\'${seconds}"`;
 }
 
 export function getPlanetColor(planetName: string): string {
-  // Премахваме "Прог. " префикса ако съществува
-  const cleanName = planetName.replace("Прог. ", "");
-  
   const colorMap: { [key: string]: string } = {
     // Български имена
     "Слънце": "hsl(var(--astro-sun))",
@@ -65,13 +61,10 @@ export function getPlanetColor(planetName: string): string {
     "♆": "hsl(var(--astro-neptune))",
     "♇": "hsl(var(--astro-pluto))"
   };
-  return colorMap[cleanName] || "hsl(var(--foreground))";
+  return colorMap[planetName] || "hsl(var(--foreground))";
 }
 
 export function getPlanetSymbol(planetName: string): string {
-  // Премахваме "Прог. " префикса ако съществува
-  const cleanName = planetName.replace("Прог. ", "");
-  
   const symbolMap: { [key: string]: string } = {
     // Български имена
     "Слънце": "☉",
@@ -120,7 +113,7 @@ export function getPlanetSymbol(planetName: string): string {
     "♇": "♇"
   };
   
-  return symbolMap[cleanName] || cleanName;
+  return symbolMap[planetName] || planetName;
 }
 
 export function getAspectColor(aspectType: string): string {
@@ -234,3 +227,4 @@ export function getZodiacColor(signName: string): string {
   };
   return colorMap[signName] || "#000000"; // Default to black
 }
+

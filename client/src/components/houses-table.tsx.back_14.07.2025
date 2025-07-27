@@ -112,6 +112,25 @@ export default function HousesTable({ houses }: HousesTableProps) {
           </TableBody>
         </Table>
       </div>
+
+      <div className="mt-4 grid md:grid-cols-2 gap-4 text-sm text-gray-600">
+        <div className="bg-blue-50 rounded-lg p-4">
+          <h4 className="font-semibold mb-2 text-blue-800">Ъглови домове (ASC, IC, DSC, MC)</h4>
+          <p>Най-силните домове, свързани с личността, дома, партньорствата и кариерата.</p>
+        </div>
+        <div className="bg-green-50 rounded-lg p-4">
+          <h4 className="font-semibold mb-2 text-green-800">Последващи домове (2, 5, 8, 11)</h4>
+          <p>Стабилизиращи домове, свързани с ресурси, творчество, трансформация и приятелства.</p>
+        </div>
+        <div className="bg-purple-50 rounded-lg p-4">
+          <h4 className="font-semibold mb-2 text-purple-800">Падащи домове (3, 6, 9, 12)</h4>
+          <p>Променливи домове, свързани с комуникация, здраве, философия и духовност.</p>
+        </div>
+        <div className="bg-orange-50 rounded-lg p-4">
+          <h4 className="font-semibold mb-2 text-orange-800">Системата на домовете</h4>
+          <p>Използва се системата на Плацидус за изчисляване на домовете. Домовете са показани като: ASC,2,3,IC,5,6,DSC,8,9,MC,11,12</p>
+        </div>
+      </div>
     </div>
   );
 }

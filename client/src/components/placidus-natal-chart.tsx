@@ -398,69 +398,6 @@ const PlacidusNatalChart: React.FC<PlacidusNatalChartProps> = ({ data }) => {
           </text>
         </g>
       </svg>
-      
-      {/* Таблица с информация */}
-      <div className="mt-6 grid grid-cols-2 gap-6 w-full max-w-4xl">
-        <div className="border border-gray-300 rounded p-4">
-          <h3 className="font-bold mb-3">Планети</h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-1">Планета</th>
-                <th className="text-left">Знак</th>
-                <th className="text-left">Градус</th>
-                <th className="text-left">Дом</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(planetPositions).map(([name, planet]) => (
-                <tr key={name} className="border-b">
-                  <td className="py-1">
-                    <span style={{color: isInvisible(name, planet.degree) ? '#FF0000' : '#000000'}}>
-                      {planet.symbol}
-                    </span> {name}
-                    {planet.retrograde && <span style={{color: '#FF0000'}}> R</span>}
-                  </td>
-                  <td>{planet.sign}</td>
-                  <td>{formatDMS(planet.degree, planet.minutes, planet.seconds)}</td>
-                  <td className="text-center">{planet.house}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        
-        <div className="border border-gray-300 rounded p-4">
-          <h3 className="font-bold mb-3">Домове (Placidus)</h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-1">Дом</th>
-                <th className="text-left">Знак</th>
-                <th className="text-left">Куспид</th>
-                <th className="text-left">Особеност</th>
-              </tr>
-            </thead>
-            <tbody>
-              {housesArray.map((house) => {
-                const isCardinal = [1, 4, 7, 10].includes(house.number);
-                const cardinalName = house.number === 1 ? 'ASC' : 
-                                   house.number === 4 ? 'IC' : 
-                                   house.number === 7 ? 'DSC' : 
-                                   house.number === 10 ? 'MC' : '';
-                return (
-                  <tr key={house.number} className="border-b">
-                    <td className="py-1 font-semibold">{house.number}</td>
-                    <td>{house.sign}</td>
-                    <td>{formatDMS(house.degree, house.minutes, house.seconds)}</td>
-                    <td className="font-bold text-gray-600">{cardinalName}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 };

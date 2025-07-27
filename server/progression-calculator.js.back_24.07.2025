@@ -49,22 +49,6 @@ class ProgressionCalculator {
       "Нептун": "♆",
       "Плутон": "♇"
     };
-
-    // Зодиакални знаци
-    this.zodiacSigns = [
-      { name: "Овен", symbol: "♈", start: 0 },
-      { name: "Телец", symbol: "♉", start: 30 },
-      { name: "Близнаци", symbol: "♊", start: 60 },
-      { name: "Рак", symbol: "♋", start: 90 },
-      { name: "Лъв", symbol: "♌", start: 120 },
-      { name: "Дева", symbol: "♍", start: 150 },
-      { name: "Везни", symbol: "♎", start: 180 },
-      { name: "Скорпион", symbol: "♏", start: 210 },
-      { name: "Стрелец", symbol: "♐", start: 240 },
-      { name: "Козирог", symbol: "♑", start: 270 },
-      { name: "Водолей", symbol: "♒", start: 300 },
-      { name: "Риби", symbol: "♓", start: 330 }
-    ];
   }
 
   /**
@@ -224,203 +208,12 @@ class ProgressionCalculator {
       console.error("Error in calculateProgressions:", error);
     }
 
+// >>> Тук слагаш лога! <<<
     console.log("DEBUG ВСИЧКИ прогресии:", progressions.map(p =>
       `${p.transitPlanet} ${p.symbol} ${p.natalPoint} orb:${p.orb}`
     ));
 
     return progressions;
-  }
-
-  /**
-   * Определя зодиакалния знак според еклиптичната дължина
-   * @param {number} longitude - Еклиптична дължина в градуси
-   * @returns {Object} Обект със знак и градуси в знака
-   */
-  getZodiacSign(longitude) {
-    const normalizedLongitude = ((longitude % 360) + 360) % 360;
-    const signIndex = Math.floor(normalizedLongitude / 30);
-    const degrees = normalizedLongitude % 30;
-    
-    return {
-      name: this.zodiacSigns[signIndex].name,
-      symbol: this.zodiacSigns[signIndex].symbol,
-      degrees: degrees
-    };
-  }
-
-  /**
-   * Инициализира позициите на прогресивните планети за определена дата
-   * @param {Date} date - Дата за инициализация
-   * @param {number} natalJD - Натална юлианска дата
-   * @returns {Object} Обект с начални позиции
-   */
-  initializeProgressedPlanetSigns(date, natalJD) {
-    const [year, month, day] = [date.getFullYear(), date.getMonth() + 1, date.getDate()];
-    const targetJD = swisseph.swe_julday(year, month, day, 12, swisseph.SE_GREG_CAL);
-    const progressedJD = this.calculateProgressedJD(natalJD, targetJD);
-    
-    const signs = {};
-    
-    for (const [planetName, planetIndex] of Object.entries(this.planetIndices)) {
-      try {
-        const result = swisseph.swe_calc_ut(progressedJD, planetIndex, swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED);
-        if (!result.error) {
-          const sign = this.getZodiacSign(result.longitude);
-          signs[planetName] = {
-            sign: sign.name,
-            longitude: result.longitude,
-            isRetrograde: result.longitudeSpeed < 0
-          };
-        }
-      } catch (error) {
-        console.error(`Error initializing progressed ${planetName}:`, error);
-      }
-    }
-    
-    return signs;
-  }
-
-  /**
-   * Проверява за прогресивни ингресии за конкретна дата
-   * @param {Date} currentDate - Текуща дата
-   * @param {Object} previousSigns - Знаци от предишния ден
-   * @param {number} natalJD - Натална юлианска дата
-   * @returns {Object} Обект с намерени ингресии и обновени знаци
-   */
-  checkProgressionIngressesForDate(currentDate, previousSigns, natalJD) {
-    const [year, month, day] = [currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate()];
-    const targetJD = swisseph.swe_julday(year, month, day, 12, swisseph.SE_GREG_CAL);
-    const progressedJD = this.calculateProgressedJD(natalJD, targetJD);
-    
-    const ingresses = [];
-    const updatedSigns = {};
-    
-    console.log(`🔍 Checking progression ingresses for: ${currentDate.toISOString().split('T')[0]}`);
-
-    for (const [planetName, planetIndex] of Object.entries(this.planetIndices)) {
-      try {
-        const result = swisseph.swe_calc_ut(progressedJD, planetIndex, swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED);
-        if (!result.error) {
-          const currentSign = this.getZodiacSign(result.longitude);
-          const isRetrograde = result.longitudeSpeed < 0;
-          
-          // Проверяваме дали има промяна в знака
-          const previousSign = previousSigns[planetName]?.sign;
-          if (previousSign && previousSign !== currentSign.name) {
-            const ingress = {
-              planet: planetName,
-              sign: currentSign.name,
-              isRetrograde: isRetrograde,
-              type: 'progression',
-              longitude: result.longitude,
-              date: currentDate.toISOString().split('T')[0]
-            };
-            
-            ingresses.push(ingress);
-            
-            console.log(`🌟 PROGRESSION INGRESS FOUND: ${planetName} ${previousSign} → ${currentSign.name} (${isRetrograde ? 'R' : 'D'})`);
-          }
-          
-          // Обновяваме знака
-          updatedSigns[planetName] = {
-            sign: currentSign.name,
-            longitude: result.longitude,
-            isRetrograde: isRetrograde
-          };
-        }
-      } catch (error) {
-        console.error(`Error calculating progressed ${planetName} for ingress:`, error);
-      }
-    }
-
-    if (ingresses.length === 0) {
-      console.log(`❌ No progression ingresses found for ${currentDate.toISOString().split('T')[0]}`);
-    }
-
-    return {
-      ingresses: ingresses,
-      updatedSigns: updatedSigns
-    };
-  }
-
-  /**
-   * Изчислява всички прогресивни ингресии за период
-   * @param {Date} startDate - Начална дата
-   * @param {Date} endDate - Крайна дата
-   * @param {number} natalJD - Натална юлианска дата
-   * @returns {Object} Обект с ингресии по дати
-   */
-  calculateProgressionIngressesForPeriod(startDate, endDate, natalJD) {
-    console.log(`=== CALCULATING PROGRESSION INGRESSES FOR PERIOD ===`);
-    console.log(`From: ${startDate.toISOString().split('T')[0]}`);
-    console.log(`To: ${endDate.toISOString().split('T')[0]}`);
-    
-    const ingressesByDate = {};
-    
-    // Инициализираме знаците за деня преди началото
-    const initDate = new Date(startDate);
-    initDate.setDate(initDate.getDate() - 1);
-    let planetSigns = this.initializeProgressedPlanetSigns(initDate, natalJD);
-    
-    console.log(`Initial progressed planet signs:`, Object.entries(planetSigns).map(([planet, data]) => 
-      `${planet}: ${data.sign} (${data.isRetrograde ? 'R' : 'D'})`
-    ).join(', '));
-
-    // Итерираме през всеки ден
-    const currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-      const dateString = currentDate.toISOString().split('T')[0];
-      
-      const result = this.checkProgressionIngressesForDate(currentDate, planetSigns, natalJD);
-      
-      if (result.ingresses.length > 0) {
-        ingressesByDate[dateString] = result.ingresses;
-      }
-      
-      // Обновяваме знаците за следващия ден
-      planetSigns = result.updatedSigns;
-      
-      // Преминаваме към следващия ден
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    const totalIngresses = Object.values(ingressesByDate).reduce((sum, ingresses) => sum + ingresses.length, 0);
-    console.log(`=== PROGRESSION INGRESSES CALCULATION COMPLETED ===`);
-    console.log(`Total progression ingresses found: ${totalIngresses}`);
-    console.log(`Days with progression ingresses: ${Object.keys(ingressesByDate).length}`);
-    
-    return ingressesByDate;
-  }
-
-  /**
-   * Тестова функция за прогресивни ингресии на конкретна дата
-   * @param {string} testDate - Дата във формат YYYY-MM-DD
-   * @param {number} natalJD - Натална юлианска дата
-   * @returns {Array} Прогресивни ингресии за тестваната дата
-   */
-  testProgressionIngressForDate(testDate, natalJD) {
-    console.log(`\n🧪 TESTING PROGRESSION INGRESSES FOR: ${testDate}`);
-    
-    const currentDate = new Date(testDate);
-    const previousDate = new Date(currentDate);
-    previousDate.setDate(previousDate.getDate() - 1);
-    
-    // Инициализираме знаците за предишния ден
-    const previousSigns = this.initializeProgressedPlanetSigns(previousDate, natalJD);
-    
-    // Проверяваме за ингресии
-    const result = this.checkProgressionIngressesForDate(currentDate, previousSigns, natalJD);
-    
-    if (result.ingresses.length > 0) {
-      console.log(`✅ Found ${result.ingresses.length} progression ingresses:`);
-      result.ingresses.forEach(ingress => {
-        console.log(`   ${ingress.planet} → ${ingress.sign} ${ingress.isRetrograde ? '(R)' : '(D)'}`);
-      });
-    } else {
-      console.log(`❌ No progression ingresses found for this date`);
-    }
-    
-    return result.ingresses;
   }
 
   /**
@@ -502,23 +295,6 @@ class ProgressionCalculator {
     }
 
     return progressions;
-  }
-
-  /**
-   * Форматира прогресивна ингресия за показване във frontend
-   * @param {Object} ingress - Обект с ингресия
-   * @returns {Object} Форматирана ингресия
-   */
-  formatProgressionIngress(ingress) {
-    return {
-      planet: ingress.planet,
-      planetSymbol: this.planetSymbols[ingress.planet] || ingress.planet,
-      sign: ingress.sign,
-      signSymbol: this.zodiacSigns.find(sign => sign.name === ingress.sign)?.symbol || ingress.sign,
-      isRetrograde: ingress.isRetrograde,
-      type: 'progression',
-      formatted: `${this.planetSymbols[ingress.planet] || ingress.planet}→${this.zodiacSigns.find(sign => sign.name === ingress.sign)?.symbol || ingress.sign}`
-    };
   }
 }
 

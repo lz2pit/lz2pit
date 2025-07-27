@@ -113,106 +113,57 @@ export default function ForecastSection({
       setProgress(100);
 
       if (result.success && Array.isArray(result.data)) {
-        // DEBUG: Логваме получените данни
-        console.log("Forecast data received:", result.data);
-        
-        // Проверяваме за прогресивни ингресии
-        const daysWithProgIngresses = result.data.filter(day => 
-          day.progressionIngresses && day.progressionIngresses.length > 0
-        );
-        console.log(`Found ${daysWithProgIngresses.length} days with progression ingresses`);
-        
-        if (daysWithProgIngresses.length > 0) {
-          console.log("First day with progression ingresses:", daysWithProgIngresses[0]);
-          console.log("Progression ingresses details:", daysWithProgIngresses[0].progressionIngresses);
-          
-          // Показваме детайли за ингресията
-          const firstIngress = daysWithProgIngresses[0].progressionIngresses[0];
-          if (firstIngress) {
-            console.log("Ingress details:", {
-              planet: firstIngress.planet,
-              sign: firstIngress.sign,
-              planetSymbol: firstIngress.planetSymbol,
-              signSymbol: firstIngress.signSymbol,
-              type: firstIngress.type,
-              time: firstIngress.time
-            });
-          }
-        }
-        
-        // Проверяваме специално за 22.10.2025
-        const oct22 = result.data.find(day => day.date === '2025-10-22');
-        if (oct22) {
-          console.log("Data for 2025-10-22:", oct22);
-          console.log("progressionIngresses:", oct22.progressionIngresses);
-        }
-        
         setForecastData(result.data);
         toast({
           title: "Успех!",
-          description: `Изчислени ${result.data.length} дни.`,
+          description: `Намерени ${result.data.length} дни с аспекти и ингресии.`,
         });
       } else {
-        toast({
-          title: "Грешка",
-          description: result.error || "Грешка при изчисляване",
-          variant: "destructive",
-        });
+        throw new Error(result.error || "Няма данни");
       }
-    } catch (error: any) {
+    } catch (err: any) {
       es.close();
       setProgress(0);
       toast({
         title: "Грешка",
-        description: error.message || "Грешка при изчисляване",
+        description: err.message || "Нещо се обърка",
         variant: "destructive",
       });
     }
   };
 
   const handleExportPDF = async () => {
-    if (!forecastData.length) return;
-    
+    if (forecastData.length === 0) {
+      toast({ title: "Грешка", description: "Няма данни за експорт!", variant: "destructive" });
+      return;
+    }
     try {
-      const response = await apiRequest("POST", "/api/export-forecast-pdf", {
+      const resp = await apiRequest("POST", "/api/export-forecast-pdf", {
         forecastData,
         startDate,
         endDate,
-        birthData: natalData.birthData
+        birthData: natalData.birthData,
       });
-      
-      if (!response.ok) {
-        throw new Error('Грешка при генериране на PDF');
-      }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
+      if (!resp.ok) throw new Error("PDF export failed");
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
       a.href = url;
-      a.download = `forecast_${startDate}_${endDate}.pdf`;
-      document.body.appendChild(a);
+      a.download = `prognoza-${startDate}-${endDate}.pdf`;
       a.click();
-      window.URL.revokeObjectURL(url);
-      
-      toast({
-        title: "Успех!",
-        description: "PDF файлът е изтеглен успешно.",
-      });
-    } catch (error) {
-      toast({
-        title: "Грешка",
-        description: "Грешка при експорт на PDF",
-        variant: "destructive",
-      });
+      URL.revokeObjectURL(url);
+      toast({ title: "Успех!", description: "PDF свален." });
+    } catch (e: any) {
+      toast({ title: "Грешка", description: e.message, variant: "destructive" });
     }
   };
 
   const renderTransit = (t: Transit) => {
-    const planetName = t.transitPlanet || t.planet || "";
+    const planetName = t.transitPlanet || t.planet || "?";
+    const planetSym = getPlanetSymbol(planetName) || planetName;
     const natalName = t.natalPoint || t.natal || "";
-    const isAspectToHouse = /^[\d]+$|^(ASC|DSC|MC|IC)$/.test(natalName);
-
+    const isHouse = /^\d+$/.test(natalName) || ["ASC","IC","DSC","MC"].includes(natalName);
+    const aspectSym = getAspectSymbol(t.aspect) || t.aspect;
     return (
       <div className="mb-1 flex items-center gap-1">
         <span
@@ -220,17 +171,17 @@ export default function ForecastSection({
           style={{ color: getPlanetColor(planetName) }}
           title={planetName}
         >
-          {getPlanetSymbol(planetName) || planetName}
-          {t.isRetrograde && <span className="text-xs text-red-600 font-bold ml-1">R</span>}
+          {planetSym}
+          {t.isRetrograde && <span className="text-xs text-red-600 font-bold">R</span>}
         </span>
         <span
           className="text-lg mx-1"
           style={{ color: getAspectColor(t.aspect) }}
           title={t.aspect}
         >
-          {getAspectSymbol(t.aspect)}
+          {aspectSym}
         </span>
-        {isAspectToHouse ? (
+        {isHouse ? (
           <span className="text-sm text-purple-600">{natalName}</span>
         ) : (
           <span
@@ -248,47 +199,36 @@ export default function ForecastSection({
     );
   };
 
-  const renderIngress = (ing: Ingress) => {
-    console.log("Rendering ingress:", ing);
-    return (
-      <div className="mb-1 flex items-center gap-1">
-        <span
-          className="text-lg symbol-font"
-          style={{ color: getPlanetColor(ing.planet) }}
-          title={ing.planet}
-        >
-          {ing.planetSymbol}
-          {ing.isRetrograde && <span className="text-xs text-red-600 font-bold ml-1">R</span>}
-        </span>
-        <span className="text-lg mx-1">→</span>
-        <span
-          className="text-lg symbol-font"
-          style={{ color: getZodiacColor(ing.sign) }}
-          title={ing.sign}
-        >
-          {ing.signSymbol}
-        </span>
-        {ing.time && <span className="text-xs text-gray-500 ml-1">({ing.time})</span>}
-      </div>
-    );
-  };
+  const renderIngress = (ing: Ingress) => (
+    <div className="mb-1 flex items-center gap-1">
+      <span
+        className="text-lg symbol-font"
+        style={{ color: getPlanetColor(ing.planet) }}
+        title={ing.planet}
+      >
+        {ing.planetSymbol}
+        {ing.isRetrograde && <span className="text-xs text-red-600 font-bold ml-1">R</span>}
+      </span>
+      <span className="text-lg mx-1">→</span>
+      <span
+        className="text-lg symbol-font"
+        style={{ color: getZodiacColor(ing.sign) }}
+        title={ing.sign}
+      >
+        {ing.signSymbol}
+      </span>
+      {ing.time && <span className="text-xs text-gray-500 ml-1">({ing.time})</span>}
+    </div>
+  );
 
   useEffect(() => () => { esRef.current?.close() }, []);
-
-  // Помощна функция за извличане на базовото име на планета
-  const getBasePlanetName = (planetName: string): string => {
-    if (planetName.startsWith("Прог. ")) {
-      return planetName.replace("Прог. ", "");
-    }
-    return planetName;
-  };
 
   return (
     <div className="border-t-2 border-gray-200 pt-8 w-full">
       <h3 className="text-2xl font-semibold mb-2 flex items-center gap-2">
-        <TrendingUp /> Прогресии, Транзити, Ингресии
+        <TrendingUp /> Модул Прогнози
       </h3>
-      <p className="text-lg text-gray-700 mb-6">Прогноза</p>
+      <p className="text-lg text-gray-700 mb-6">Прогресии, Транзити, Ингресии</p>
 
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div>
@@ -360,124 +300,64 @@ export default function ForecastSection({
                 const mars = day.mars || [];
                 const mercR = day.mercuryRetro || [];
 
-                // ПРОГРЕСИВНИ ИНГРЕСИИ - показваме в колоната "Прогресии"
-                const progressionColumnIngresses = progIngr;
-                
-                // ТРАНЗИТНИ ИНГРЕСИИ - филтрираме по планети за съответните колони
-                const outerIngresses = transIngr.filter((ing) => {
-                  const baseName = getBasePlanetName(ing.planet);
-                  return ["Юпитер", "Сатурн", "Уран", "Нептун", "Плутон"].includes(baseName);
-                });
-                
-                const venusIngr = transIngr.filter((ing) => {
-                  const baseName = getBasePlanetName(ing.planet);
-                  return baseName === "Венера";
-                });
-                
-                const marsIngr = transIngr.filter((ing) => {
-                  const baseName = getBasePlanetName(ing.planet);
-                  return baseName === "Марс";
-                });
-                
-                const mercIngr = transIngr.filter((ing) => {
-                  const baseName = getBasePlanetName(ing.planet);
-                  return baseName === "Меркурий";
-                });
-                
+                // Филтрираме ингресиите по планети за правилните колони
+                const outerIngresses = [...progIngr, ...transIngr].filter((ing) =>
+                  ["Юпитер", "Сатурн", "Уран", "Нептун", "Плутон"].includes(ing.planet)
+                );
+                const venusIngr = [...progIngr, ...transIngr].filter((ing) => ing.planet === "Венера");
+                const marsIngr = [...progIngr, ...transIngr].filter((ing) => ing.planet === "Марс");
+                const mercIngr = [...progIngr, ...transIngr].filter((ing) => ing.planet === "Меркурий");
+
+                // За колоната "Прогресии" показваме ВСИЧКИ прогресии (включително Слънце и Луна)
+                // плюс ВСИЧКИ ингресии на прогресии
+                const allProgressionIngresses = [...progIngr, ...transIngr].filter((ing) =>
+                  ["Слънце", "Луна", "Меркурий", "Венера", "Марс", "Юпитер", "Сатурн", "Уран", "Нептун", "Плутон"].includes(ing.planet)
+                );
+
                 return (
                   <TableRow key={idx} className="hover:bg-gray-50">
                     <TableCell className="px-4 py-4 whitespace-nowrap">
                       {new Date(day.date).toLocaleDateString("bg-BG")}
                     </TableCell>
-                    
-                    {/* Колона ПРОГРЕСИИ - включва прогресивни аспекти И прогресивни ингресии */}
                     <TableCell className="px-4 py-4 align-top">
-                      {(progs.length + progressionColumnIngresses.length) > 0 ? (
+                      {(progs.length + allProgressionIngresses.length) > 0 ? (
                         <div className="space-y-1">
+                          {/* Показваме ВСИЧКИ прогресии, включително Слънце и Луна */}
                           {progs.map((t, j) => <div key={`p-${j}`}>{renderTransit(t)}</div>)}
-                          
-                          {/* ВРЕМЕНЕН DEBUG - показваме винаги ако има ингресии */}
-                          {day.date === '2025-10-26' && (
-                            <div className="border-2 border-red-500 bg-red-50 p-2 mt-2">
-                              <div className="text-red-600 font-bold">DEBUG 26 OCT:</div>
-                              <div>progIngr length: {progIngr.length}</div>
-                              <div>progressionColumnIngresses length: {progressionColumnIngresses.length}</div>
-                              {progIngr.length > 0 && (
-                                <div>First ingress: {JSON.stringify(progIngr[0])}</div>
-                              )}
-                            </div>
-                          )}
-                          
-                          {progressionColumnIngresses.length > 0 && (
-                            <>
-                              {console.log(`RENDERING ${progressionColumnIngresses.length} progression ingresses for ${day.date}:`, progressionColumnIngresses)}
-                              {progressionColumnIngresses.map((ing, j) => {
-                                console.log(`Rendering ingress ${j}:`, ing);
-                                return (
-                                  <div key={`pi-${j}`} className="border-t-2 border-purple-500 pt-2 mt-2 bg-purple-50 p-2 rounded">
-                                    <div className="text-xs text-purple-600 font-semibold mb-1">ИНГРЕСИЯ:</div>
-                                    {renderIngress(ing)}
-                                  </div>
-                                );
-                              })}
-                            </>
-                          )}
+                          {/* Показваме ВСИЧКИ ингресии на прогресии */}
+                          {allProgressionIngresses.map((ing, j) => <div key={`ip-${j}`}>{renderIngress(ing)}</div>)}
                         </div>
                       ) : <span className="text-gray-400">—</span>}
                     </TableCell>
-                    
-                    {/* Колона ВЪНШНИ ПЛАНЕТИ */}
                     <TableCell className="px-4 py-4 align-top">
                       {(outers.length + outerIngresses.length) > 0 ? (
                         <div className="space-y-1">
                           {outers.map((t, j) => <div key={`o-${j}`}>{renderTransit(t)}</div>)}
-                          {outerIngresses.map((ing, j) => (
-                            <div key={`oi-${j}`} className="border-t border-gray-200 pt-1 mt-1">
-                              {renderIngress(ing)}
-                            </div>
-                          ))}
+                          {outerIngresses.map((ing, j) => <div key={`oi-${j}`}>{renderIngress(ing)}</div>)}
                         </div>
                       ) : <span className="text-gray-400">—</span>}
                     </TableCell>
-                    
-                    {/* Колона ВЕНЕРА */}
                     <TableCell className="px-4 py-4 align-top">
                       {(venus.length + venusIngr.length) > 0 ? (
                         <div className="space-y-1">
                           {venus.map((t, j) => <div key={`v-${j}`}>{renderTransit(t)}</div>)}
-                          {venusIngr.map((ing, j) => (
-                            <div key={`vi-${j}`} className="border-t border-gray-200 pt-1 mt-1">
-                              {renderIngress(ing)}
-                            </div>
-                          ))}
+                          {venusIngr.map((ing, j) => <div key={`vlg-${j}`}>{renderIngress(ing)}</div>)}
                         </div>
                       ) : <span className="text-gray-400">—</span>}
                     </TableCell>
-                    
-                    {/* Колона МАРС */}
                     <TableCell className="px-4 py-4 align-top">
                       {(mars.length + marsIngr.length) > 0 ? (
                         <div className="space-y-1">
                           {mars.map((t, j) => <div key={`m-${j}`}>{renderTransit(t)}</div>)}
-                          {marsIngr.map((ing, j) => (
-                            <div key={`mi-${j}`} className="border-t border-gray-200 pt-1 mt-1">
-                              {renderIngress(ing)}
-                            </div>
-                          ))}
+                          {marsIngr.map((ing, j) => <div key={`mlg-${j}`}>{renderIngress(ing)}</div>)}
                         </div>
                       ) : <span className="text-gray-400">—</span>}
                     </TableCell>
-                    
-                    {/* Колона МЕРКУРИЙ R */}
                     <TableCell className="px-4 py-4 align-top">
                       {(mercR.length + mercIngr.length) > 0 ? (
                         <div className="space-y-1">
                           {mercR.map((t, j) => <div key={`mr-${j}`}>{renderTransit(t)}</div>)}
-                          {mercIngr.map((ing, j) => (
-                            <div key={`mri-${j}`} className="border-t border-gray-200 pt-1 mt-1">
-                              {renderIngress(ing)}
-                            </div>
-                          ))}
+                          {mercIngr.map((ing, j) => <div key={`mlrg-${j}`}>{renderIngress(ing)}</div>)}
                         </div>
                       ) : <span className="text-gray-400">—</span>}
                     </TableCell>

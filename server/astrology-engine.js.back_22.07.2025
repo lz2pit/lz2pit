@@ -1,0 +1,1114 @@
+// server/astrology-engine.js
+import { createRequire } from 'module';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import ProgressionCalculator from './progression-calculator.js';
+
+const require = createRequire(import.meta.url);
+const swisseph = require('swisseph');
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const EPHE_PATH = process.env.EPHE_PATH || path.join(__dirname, "../swisseph-master/ephe");
+
+swisseph.swe_set_ephe_path(EPHE_PATH);
+
+class AstrologyCalculator {
+  constructor() {
+    // Инициализация на модулите
+    this.progressionCalculator = new ProgressionCalculator();
+    
+    // Дефиниции за ингресии (вградени в главния клас)
+    this.planetIndices = {
+      "Слънце": swisseph.SE_SUN,
+      "Луна": swisseph.SE_MOON,
+      "Меркурий": swisseph.SE_MERCURY,
+      "Венера": swisseph.SE_VENUS,
+      "Марс": swisseph.SE_MARS,
+      "Юпитер": swisseph.SE_JUPITER,
+      "Сатурн": swisseph.SE_SATURN,
+      "Уран": swisseph.SE_URANUS,
+      "Нептун": swisseph.SE_NEPTUNE,
+      "Плутон": swisseph.SE_PLUTO
+    };
+
+    this.zodiacSigns = [
+      { name: "Овен", symbol: "♈" },
+      { name: "Телец", symbol: "♉" },
+      { name: "Близнаци", symbol: "♊" },
+      { name: "Рак", symbol: "♋" },
+      { name: "Лъв", symbol: "♌" },
+      { name: "Дева", symbol: "♍" },
+      { name: "Везни", symbol: "♎" },
+      { name: "Скорпион", symbol: "♏" },
+      { name: "Стрелец", symbol: "♐" },
+      { name: "Козирог", symbol: "♑" },
+      { name: "Водолей", symbol: "♒" },
+      { name: "Риби", symbol: "♓" }
+    ];
+  }
+
+  getTimezoneOffset(date, country) {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    
+    function getLastSundayOfMonth(year, month) {
+      const lastDay = new Date(year, month, 0);
+      const lastSunday = lastDay.getDate() - lastDay.getDay();
+      return lastSunday;
+    }
+    
+    function isEuropeanDST(year, month, day) {
+      if (month < 3 || month > 10) return false;
+      if (month > 3 && month < 10) return true;
+      
+      const lastSundayMarch = getLastSundayOfMonth(year, 3);
+      const lastSundayOctober = getLastSundayOfMonth(year, 10);
+      
+      if (month === 3) return day >= lastSundayMarch;
+      if (month === 10) return day < lastSundayOctober;
+      
+      return false;
+    }
+    
+    const countryLower = country.toLowerCase();
+    
+    if (countryLower === 'bulgaria' || countryLower === 'българия') {
+      if (year >= 1979) {
+        return isEuropeanDST(year, month, day) ? 3 : 2;
+      } else {
+        return 2;
+      }
+    }
+    
+    return isEuropeanDST(year, month, day) ? 3 : 2;
+  }
+
+  getDSTName(country, isDST) {
+    const countryLower = country.toLowerCase();
+    
+    if (countryLower === 'bulgaria' || countryLower === 'българия') {
+      return isDST ? 'EEST' : 'EET';
+    }
+    
+    return isDST ? 'DST' : 'STD';
+  }
+
+  async getCoordinates(city, country = "България") {
+    console.log(`getCoordinates called with city: ${city}`);
+    
+    try {
+      const bulgarianCities = {
+        'sofia': { lat: 42.6977, lon: 23.3219 },
+        'plovdiv': { lat: 42.1354, lon: 24.7453 },
+        'varna': { lat: 43.2141, lon: 27.9147 },
+        'burgas': { lat: 42.5048, lon: 27.4626 },
+        'ruse': { lat: 43.8564, lon: 25.9570 },
+        'stara zagora': { lat: 42.4258, lon: 25.6342 },
+        'pleven': { lat: 43.4167, lon: 24.6167 },
+        'sliven': { lat: 42.6824, lon: 26.3157 },
+        'dobrich': { lat: 43.5714, lon: 27.8272 },
+        'shumen': { lat: 43.2706, lon: 26.9225 },
+        'pernik': { lat: 42.6092, lon: 23.0309 },
+        'yambol': { lat: 42.4841, lon: 26.5106 },
+        'haskovo': { lat: 41.9344, lon: 25.5553 },
+        'pazardzhik': { lat: 42.1887, lon: 24.3319 },
+        'blagoevgrad': { lat: 42.0116, lon: 23.0905 },
+        'veliko tarnovo': { lat: 43.0757, lon: 25.6172 },
+        'vratsa': { lat: 43.2030, lon: 23.5489 },
+        'gabrovo': { lat: 42.8741, lon: 25.3188 },
+        'kardzhali': { lat: 41.6303, lon: 25.3732 },
+        'kyustendil': { lat: 42.2858, lon: 22.6952 },
+        'lovech': { lat: 43.1340, lon: 24.7151 },
+        'montana': { lat: 43.4091, lon: 23.2276 },
+        'razgrad': { lat: 43.5258, lon: 26.5156 },
+        'silistra': { lat: 44.1194, lon: 27.2614 },
+        'smolyan': { lat: 41.5741, lon: 24.7016 },
+        'targovishte': { lat: 43.2468, lon: 26.5694 },
+        'vidin': { lat: 43.9859, lon: 22.8777 },
+        // Българските имена
+        'софия': { lat: 42.6977, lon: 23.3219 },
+        'пловдив': { lat: 42.1354, lon: 24.7453 },
+        'варна': { lat: 43.2141, lon: 27.9147 },
+        'бургас': { lat: 42.5048, lon: 27.4626 },
+        'русе': { lat: 43.8564, lon: 25.9570 },
+        'стара загора': { lat: 42.4258, lon: 25.6342 },
+        'плевен': { lat: 43.4167, lon: 24.6167 },
+        'сливен': { lat: 42.6824, lon: 26.3157 },
+        'добрич': { lat: 43.5714, lon: 27.8272 },
+        'шумен': { lat: 43.2706, lon: 26.9225 },
+        'перник': { lat: 42.6092, lon: 23.0309 },
+        'ямбол': { lat: 42.4841, lon: 26.5106 },
+        'хасково': { lat: 41.9344, lon: 25.5553 },
+        'пазарджик': { lat: 42.1887, lon: 24.3319 },
+        'благоевград': { lat: 42.0116, lon: 23.0905 },
+        'велико търново': { lat: 43.0757, lon: 25.6172 },
+        'враца': { lat: 43.2030, lon: 23.5489 },
+        'габрово': { lat: 42.8741, lon: 25.3188 },
+        'кърджали': { lat: 41.6303, lon: 25.3732 },
+        'кюстендил': { lat: 42.2858, lon: 22.6952 },
+        'ловеч': { lat: 43.1340, lon: 24.7151 },
+        'монтана': { lat: 43.4091, lon: 23.2276 },
+        'разград': { lat: 43.5258, lon: 26.5156 },
+        'силистра': { lat: 44.1194, lon: 27.2614 },
+        'смолян': { lat: 41.5741, lon: 24.7016 },
+        'търговище': { lat: 43.2468, lon: 26.5694 },
+        'видин': { lat: 43.9859, lon: 22.8777 }
+      };
+      
+      const cityKey = city.toLowerCase().trim();
+      
+      if (bulgarianCities[cityKey]) {
+        const coordinates = bulgarianCities[cityKey];
+        console.log(`Found coordinates: ${JSON.stringify(coordinates)}`);
+        
+        return {
+          success: true,
+          coordinates: {
+            lat: coordinates.lat,
+            lon: coordinates.lon
+          }
+        };
+      }
+      
+      return {
+        success: true,
+        coordinates: { lat: 43.4167, lon: 24.6167 }
+      };
+    } catch (error) {
+      console.error("Error in getCoordinates:", error);
+      return {
+        success: true,
+        coordinates: { lat: 43.4167, lon: 24.6167 }
+      };
+    }
+  }
+
+  async getCitySuggestions(query) {
+    const cities = [
+      'София', 'Пловдив', 'Варна', 'Бургас', 'Русе', 'Стара Загора', 'Плевен',
+      'Сливен', 'Добрич', 'Шумен', 'Перник', 'Ямбол', 'Хасково', 'Пазарджик',
+      'Благоевград', 'Велико Търново', 'Враца', 'Габрово', 'Кърджали', 'Кюстендил',
+      'Ловеч', 'Монтана', 'Разград', 'Силистра', 'Смолян', 'Търговище', 'Видин'
+    ];
+    
+    const filtered = cities.filter(city => 
+      city.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    return filtered.slice(0, 10);
+  }
+
+  getZodiacSignFromLongitude(longitude) {
+    const normalizedLongitude = ((longitude % 360) + 360) % 360;
+    const signIndex = Math.floor(normalizedLongitude / 30);
+    return this.zodiacSigns[signIndex];
+  }
+
+  initializePlanetSigns(date) {
+    console.log(`🔧 Initializing planet signs for: ${date.toISOString().split('T')[0]}`);
+    
+    const planetSigns = {};
+    const julianDay = swisseph.swe_julday(
+      date.getFullYear(),
+      date.getMonth() + 1,
+      date.getDate(),
+      12.0,
+      swisseph.SE_GREG_CAL
+    );
+
+    for (const [planetName, planetIndex] of Object.entries(this.planetIndices)) {
+      try {
+        const result = swisseph.swe_calc_ut(julianDay, planetIndex, swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED);
+        if (!result.error) {
+          const sign = this.getZodiacSignFromLongitude(result.longitude);
+          const isRetrograde = result.longitudeSpeed < 0;
+          
+          planetSigns[planetName] = {
+            sign: sign.name,
+            longitude: result.longitude,
+            isRetrograde: isRetrograde
+          };
+          
+          console.log(`   ${planetName}: ${sign.name} (${result.longitude.toFixed(2)}°) ${isRetrograde ? 'R' : 'D'}`);
+        }
+      } catch (error) {
+        console.error(`Error initializing sign for ${planetName}:`, error);
+      }
+    }
+
+    console.log(`🔧 Initialization complete. Found ${Object.keys(planetSigns).length} planet signs.`);
+    return planetSigns;
+  }
+
+  checkIngressesForDate(currentDate, previousSigns) {
+    const ingresses = [];
+    const updatedSigns = {};
+    const dateString = currentDate.toISOString().split('T')[0];
+    
+    console.log(`🔍 === CHECKING INGRESSES FOR ${dateString} (every minute check) ===`);
+    
+    // Проверяваме всяка минута от денонощието (1440 минути)
+    for (let minute = 0; minute < 1440; minute++) {
+      const hour = Math.floor(minute / 60);
+      const min = minute % 60;
+      
+      const julianDay = swisseph.swe_julday(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + 1,
+        currentDate.getDate(),
+        hour + min / 60.0,
+        swisseph.SE_GREG_CAL
+      );
+
+      for (const [planetName, planetIndex] of Object.entries(this.planetIndices)) {
+        try {
+          const result = swisseph.swe_calc_ut(julianDay, planetIndex, swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED);
+          if (!result.error) {
+            const currentSign = this.getZodiacSignFromLongitude(result.longitude);
+            const isRetrograde = result.longitudeSpeed < 0;
+            
+            const previousSignName = previousSigns[planetName]?.sign;
+            
+            // Само за първата минута отпечатваме детайлите
+            if (minute === 0) {
+              console.log(`   ${planetName}: Previous=${previousSignName}, Current=${currentSign.name}, Retro=${isRetrograde ? 'R' : 'D'}`);
+            }
+            
+            // Проверяваме дали има промяна в знака
+            if (previousSignName && previousSignName !== currentSign.name) {
+              // Проверяваме дали вече сме добавили тази ингресия
+              const alreadyAdded = ingresses.some(ing => 
+                ing.planet === planetName && ing.sign === currentSign.name
+              );
+              
+              if (!alreadyAdded) {
+                const timeString = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+                
+                const ingress = {
+                  planet: planetName,
+                  sign: currentSign.name,
+                  isRetrograde: isRetrograde,
+                  type: 'transit',
+                  longitude: result.longitude,
+                  date: dateString,
+                  time: timeString
+                };
+                
+                ingresses.push(ingress);
+                
+                console.log(`🎯 INGRESS FOUND: ${planetName} ${previousSignName} → ${currentSign.name} (${isRetrograde ? 'R' : 'D'}) at ${timeString}`);
+              }
+            }
+            
+            // Обновяваме знака с последната стойност за тази минута
+            updatedSigns[planetName] = {
+              sign: currentSign.name,
+              longitude: result.longitude,
+              isRetrograde: isRetrograde
+            };
+          }
+        } catch (error) {
+          console.error(`Error calculating ${planetName} for ingress at minute ${minute}:`, error);
+        }
+      }
+    }
+
+    console.log(`🔍 === INGRESS CHECK COMPLETE: Found ${ingresses.length} ingresses ===`);
+    
+    return {
+      ingresses: ingresses,
+      updatedSigns: updatedSigns
+    };
+  }
+
+  formatIngress(ingress) {
+    const planetSymbols = {
+      "Слънце": "☉", "Луна": "☽", "Меркурий": "☿", "Венера": "♀", "Марс": "♂",
+      "Юпитер": "♃", "Сатурн": "♄", "Уран": "♅", "Нептун": "♆", "Плутон": "♇"
+    };
+    
+    return {
+      planet: ingress.planet,
+      planetSymbol: planetSymbols[ingress.planet] || ingress.planet,
+      sign: ingress.sign,
+      signSymbol: this.zodiacSigns.find(sign => sign.name === ingress.sign)?.symbol || ingress.sign,
+      isRetrograde: ingress.isRetrograde,
+      type: ingress.type || 'transit',
+      time: ingress.time,
+      formatted: `${planetSymbols[ingress.planet] || ingress.planet}→${this.zodiacSigns.find(sign => sign.name === ingress.sign)?.symbol || ingress.sign}`
+    };
+  }
+
+  async calculateNatalChart(birthData, coordinates, settings = {}) {
+    try {
+      console.log("Calculating natal chart with data:", birthData);
+      
+      let year, month, day, hour, minute, second;
+      
+      if (birthData.date && birthData.time) {
+        const [y, m, d] = birthData.date.split('-').map(Number);
+        const [h, min, s] = birthData.time.split(':').map(Number);
+        year = y; month = m; day = d; hour = h; minute = min; second = s || 0;
+      } else {
+        year = birthData.year; month = birthData.month; day = birthData.day;
+        hour = birthData.hour; minute = birthData.minute; second = birthData.second || 0;
+      }
+
+      const birthDate = new Date(year, month - 1, day, hour, minute, second);
+      const country = birthData.country || coordinates.country || "България";
+      
+      const timezoneOffset = this.getTimezoneOffset(birthDate, country);
+      const isDST = timezoneOffset !== this.getTimezoneOffset(new Date(year, 0, 15), country);
+      const timezoneName = this.getDSTName(country, isDST);
+      
+      const utHour = hour - timezoneOffset + minute / 60 + second / 3600;
+      const julianDay = swisseph.swe_julday(year, month, day, utHour, swisseph.SE_GREG_CAL);
+      
+      const lat = coordinates.lat || coordinates.latitude || 43.4167;
+      const lon = coordinates.lon || coordinates.longitude || 24.6167;
+      
+      const houseSystem = settings.houseSystem || 'placidus';
+      let houseSystemCode = 'P';
+      
+      switch(houseSystem.toLowerCase()) {
+        case 'koch': houseSystemCode = 'K'; break;
+        case 'equal': houseSystemCode = 'E'; break;
+        case 'whole': houseSystemCode = 'W'; break;
+        case 'regiomontanus': houseSystemCode = 'R'; break;
+        case 'campanus': houseSystemCode = 'C'; break;
+        case 'topocentric': houseSystemCode = 'T'; break;
+        default: houseSystemCode = 'P';
+      }
+      
+      const houses = swisseph.swe_houses(julianDay, lat, lon, houseSystemCode);
+      
+      const houseData = {};
+      if (houses && houses.house) {
+        for (let i = 0; i < 12; i++) {
+          const houseNumber = i + 1;
+          let houseName;
+          
+          if (houseNumber === 1) houseName = "ASC";
+          else if (houseNumber === 4) houseName = "IC";
+          else if (houseNumber === 7) houseName = "DSC";
+          else if (houseNumber === 10) houseName = "MC";
+          else houseName = houseNumber.toString();
+          
+          const longitude = houses.house[i];
+          const sign = this.getZodiacSign(longitude);
+          const degree = Math.floor(longitude % 30);
+          const minutes = Math.floor((longitude % 1) * 60);
+          const seconds = Math.round((((longitude % 1) * 60) % 1) * 60);
+          
+          houseData[`Дом ${houseNumber}`] = {
+            longitude,
+            sign,
+            degree,
+            minutes,
+            seconds,
+            name: houseName
+          };
+        }
+      }
+      
+      const planets = {};
+      const planetIndicesForNatal = {
+        "Слънце": swisseph.SE_SUN,
+        "Луна": swisseph.SE_MOON,
+        "Меркурий": swisseph.SE_MERCURY,
+        "Венера": swisseph.SE_VENUS,
+        "Марс": swisseph.SE_MARS,
+        "Юпитер": swisseph.SE_JUPITER,
+        "Сатурн": swisseph.SE_SATURN,
+        "Уран": swisseph.SE_URANUS,
+        "Нептун": swisseph.SE_NEPTUNE,
+        "Плутон": swisseph.SE_PLUTO
+      };
+      
+      const planetSymbols = {
+        "Слънце": "☉",
+        "Луна": "☽", 
+        "Меркурий": "☿",
+        "Венера": "♀",
+        "Марс": "♂",
+        "Юпитер": "♃",
+        "Сатурн": "♄",
+        "Уран": "♅",
+        "Нептун": "♆",
+        "Плутон": "♇"
+      };
+
+      for (const [name, index] of Object.entries(planetIndicesForNatal)) {
+        try {
+          const result = swisseph.swe_calc_ut(julianDay, index, swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED);
+          
+          if (!result.error) {
+            const longitude = result.longitude;
+            const speed = result.longitudeSpeed;
+            const sign = this.getZodiacSign(longitude);
+            const degree = Math.floor(longitude % 30);
+            const minutes = Math.floor((longitude % 1) * 60);
+            const seconds = Math.round((((longitude % 1) * 60) % 1) * 60);
+            
+            let motionType = 'D';
+            if (speed < 0) {
+              motionType = 'R';
+            } else if (Math.abs(speed) < 0.01) {
+              motionType = 'S';
+            }
+            
+            let magnitude = "—";
+            const planetMagnitudes = {
+              'Слънце': -26.7,
+              'Луна': -12.6,
+              'Меркурий': -0.4,
+              'Венера': -4.2,
+              'Марс': -2.9,
+              'Юпитер': -2.7,
+              'Сатурн': -0.5,
+              'Уран': 5.5,
+              'Нептун': 7.8,
+              'Плутон': 14.0
+            };
+            
+            if (name in planetMagnitudes) {
+              magnitude = planetMagnitudes[name].toFixed(1);
+            }
+            
+            let house = 1;
+            if (houses && houses.house) {
+              for (let i = 0; i < 12; i++) {
+                const nextHouse = (i + 1) % 12;
+                const cusp1 = houses.house[i];
+                const cusp2 = houses.house[nextHouse];
+                
+                if (this.isPlanetInHouse(longitude, cusp1, cusp2)) {
+                  house = i + 1;
+                  break;
+                }
+              }
+            }
+            
+            planets[name] = {
+              longitude,
+              sign,
+              degree,
+              minutes,
+              seconds,
+              house,
+              speed,
+              motionType,
+              magnitude,
+              symbol: planetSymbols[name]
+            };
+          }
+        } catch (error) {
+          console.error(`Error calculating ${name}:`, error);
+        }
+      }
+
+      return {
+        birthData: {
+          ...birthData,
+          year,
+          month,
+          day,
+          hour,
+          minute,
+          second
+        },
+        coordinates,
+        timezone: {
+          offset: timezoneOffset,
+          isDST: isDST,
+          name: timezoneName,
+          country: country
+        },
+        settings: {
+          houseSystem: houseSystem,
+          zodiacType: settings.zodiacType || 'tropical'
+        },
+        planets,
+        houses: houseData,
+        aspects: this.calculateAspects(planets, houseData)
+      };
+    } catch (error) {
+      console.error("Грешка при изчисляване на натална карта:", error);
+      throw error;
+    }
+  }
+
+  isPlanetInHouse(planetLong, cusp1, cusp2) {
+    planetLong = planetLong % 360;
+    cusp1 = cusp1 % 360;
+    cusp2 = cusp2 % 360;
+    
+    if (cusp1 < cusp2) {
+      return planetLong >= cusp1 && planetLong < cusp2;
+    } else {
+      return planetLong >= cusp1 || planetLong < cusp2;
+    }
+  }
+
+  getZodiacSign(degree) {
+    const signs = [
+      { name: "Овен", symbol: "♈" }, { name: "Телец", symbol: "♉" },
+      { name: "Близнаци", symbol: "♊" }, { name: "Рак", symbol: "♋" },
+      { name: "Лъв", symbol: "♌" }, { name: "Дева", symbol: "♍" },
+      { name: "Везни", symbol: "♎" }, { name: "Скорпион", symbol: "♏" },
+      { name: "Стрелец", symbol: "♐" }, { name: "Козирог", symbol: "♑" },
+      { name: "Водолей", symbol: "♒" }, { name: "Риби", symbol: "♓" }
+    ];
+    const normalizedDegree = ((degree % 360) + 360) % 360;
+    return signs[Math.floor(normalizedDegree / 30)];
+  }
+
+  calculateAspects(planets, houses) {
+    const aspects = [];
+    const planetNames = Object.keys(planets);
+    
+    const aspectTypes = [
+      { name: 'Съвпад', angle: 0, orb: 8, symbol: '☌' },
+      { name: 'Секстил', angle: 60, orb: 6, symbol: '⚹' },
+      { name: 'Квадратура', angle: 90, orb: 8, symbol: '□' },
+      { name: 'Тригон', angle: 120, orb: 8, symbol: '△' },
+      { name: 'Опозиция', angle: 180, orb: 8, symbol: '☍' }
+    ];
+    
+    for (let i = 0; i < planetNames.length; i++) {
+      for (let j = i + 1; j < planetNames.length; j++) {
+        const planet1 = planetNames[i];
+        const planet2 = planetNames[j];
+        const lon1 = planets[planet1].longitude;
+        const lon2 = planets[planet2].longitude;
+        
+        if (typeof lon1 !== 'number' || typeof lon2 !== 'number' || 
+            isNaN(lon1) || isNaN(lon2)) {
+          continue;
+        }
+        
+        let angle = Math.abs(lon1 - lon2);
+        if (angle > 180) angle = 360 - angle;
+        
+        for (const aspectType of aspectTypes) {
+          const diff = Math.abs(angle - aspectType.angle);
+          
+          if (typeof diff !== 'number' || isNaN(diff)) {
+            continue;
+          }
+          
+          if (diff <= aspectType.orb) {
+            aspects.push({
+              type: 'planet-planet',
+              planet1: planet1,
+              planet2: planet2,
+              aspect: aspectType.name,
+              symbol: aspectType.symbol,
+              angle: isNaN(angle) ? 0 : Number(angle.toFixed(1)),
+              orb: isNaN(diff) ? 0 : Number(diff.toFixed(1)),
+              isExact: diff < 1
+            });
+            break;
+          }
+        }
+      }
+    }
+    
+    if (!houses || typeof houses !== 'object') {
+      return aspects;
+    }
+    
+    const angles = [
+      { name: 'ASC', longitude: houses['Дом 1']?.longitude || 0 },
+      { name: 'MC', longitude: houses['Дом 10']?.longitude || 0 }
+    ];
+    
+    for (const planet of planetNames) {
+      const planetLon = planets[planet].longitude;
+      
+      if (typeof planetLon !== 'number' || isNaN(planetLon)) {
+        continue;
+      }
+      
+      for (const angle of angles) {
+        if (typeof angle.longitude !== 'number' || isNaN(angle.longitude)) {
+          continue;
+        }
+        
+        let angleDiff = Math.abs(planetLon - angle.longitude);
+        if (angleDiff > 180) angleDiff = 360 - angleDiff;
+        
+        for (const aspectType of aspectTypes) {
+          const diff = Math.abs(angleDiff - aspectType.angle);
+          
+          if (typeof diff !== 'number' || isNaN(diff)) {
+            continue;
+          }
+          
+          if (diff <= aspectType.orb) {
+            aspects.push({
+              type: 'planet-angle',
+              planet1: planet,
+              planet2: angle.name,
+              aspect: aspectType.name,
+              symbol: aspectType.symbol,
+              angle: isNaN(angleDiff) ? 0 : Number(angleDiff.toFixed(1)),
+              orb: isNaN(diff) ? 0 : Number(diff.toFixed(1)),
+              isExact: diff < 1
+            });
+            break;
+          }
+        }
+      }
+    }
+    
+    return aspects;
+  }
+
+  calculateProgressions(birthData, coordinates, forecastDate) {
+    return [];
+  }
+
+  async calculateForecast(birthData, coordinates, startDate, endDate) {
+    try {
+      console.log("=== SERVER: Starting forecast calculation ===");
+      console.log("Birth data:", birthData);
+      console.log("Coordinates:", coordinates);
+      console.log("Period:", startDate, "to", endDate);
+      
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        throw new Error("Невалидни дати");
+      }
+      
+      if (start >= end) {
+        throw new Error("Началната дата трябва да е преди крайната");
+      }
+      
+      const maxDays = 365;
+      const diffInDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      
+      if (diffInDays > maxDays) {
+        throw new Error(`Максималният период е ${maxDays} дни. Текущият период е ${diffInDays} дни.`);
+      }
+      
+      const natalChart = await this.calculateNatalChart(birthData, coordinates);
+      if (!natalChart || !natalChart.planets) {
+        throw new Error("Грешка при изчисляване на наталната карта");
+      }
+      
+      console.log("=== Natal chart calculated ===");
+      console.log("Natal planets:", Object.keys(natalChart.planets));
+      
+      const natalPointsForTransits = {};
+      const natalPointsForProgressions = {};
+      
+      for (const [planetName, planetData] of Object.entries(natalChart.planets)) {
+        if (planetData && typeof planetData.longitude === 'number') {
+          natalPointsForTransits[planetName] = planetData.longitude;
+          natalPointsForProgressions[planetName] = planetData.longitude;
+        }
+      }
+      
+      if (natalChart.houses) {
+        const angleHouses = {
+          'ASC': natalChart.houses['Дом 1'],
+          'IC': natalChart.houses['Дом 4'], 
+          'DSC': natalChart.houses['Дом 7'],
+          'MC': natalChart.houses['Дом 10']
+        };
+        
+        for (const [angleName, houseData] of Object.entries(angleHouses)) {
+          if (houseData && typeof houseData.longitude === 'number') {
+            natalPointsForTransits[angleName] = houseData.longitude;
+            natalPointsForProgressions[angleName] = houseData.longitude;
+          }
+        }
+      }
+      
+      console.log("=== Natal points prepared ===");
+      console.log("For transits:", Object.keys(natalPointsForTransits));
+      console.log("For progressions:", Object.keys(natalPointsForProgressions));
+      
+      const natalJD = swisseph.swe_julday(
+        birthData.year, birthData.month, birthData.day,
+        birthData.hour - (natalChart.timezone.offset || 2),
+        swisseph.SE_GREG_CAL
+      );
+      
+      const forecastArray = [];
+      const currentDate = new Date(start);
+      
+      const outerPlanets = ["Юпитер", "Сатурн", "Уран", "Нептун", "Плутон"];
+      
+      console.log("=== INITIALIZING INGRESSES ===");
+      const initDate = new Date(start);
+      initDate.setDate(initDate.getDate() - 1);
+      let previousSigns = this.initializePlanetSigns(initDate);
+      
+      let dayCounter = 0;
+      while (currentDate <= end) {
+        dayCounter++;
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth() + 1;
+        const day = currentDate.getDate();
+        const dateString = currentDate.toISOString().split('T')[0];
+        
+        console.log(`\n📅 === DAY ${dayCounter}: ${dateString} ===`);
+        
+        const julianDay = swisseph.swe_julday(year, month, day, 12.0, swisseph.SE_GREG_CAL);
+        
+        const dayTransits = {
+          date: dateString,
+          progressions: [],
+          outerPlanets: [],
+          venus: [],
+          mars: [],
+          mercuryRetro: [],
+          transitIngresses: [],
+          progressionIngresses: []
+        };
+        
+        const majorAspects = [
+          { name: "Съвпад", angle: 0, orb: 1, symbol: "☌" },
+          { name: "Секстил", angle: 60, orb: 1, symbol: "⚹" },
+          { name: "Квадратура", angle: 90, orb: 1, symbol: "□" },
+          { name: "Тригон", angle: 120, orb: 1, symbol: "△" },
+          { name: "Опозиция", angle: 180, orb: 1, symbol: "☍" }
+        ];
+        
+        console.log(`🔮 Calculating progressions for ${dateString}...`);
+        const progressions = this.progressionCalculator.calculateProgressions(
+          birthData, natalJD, natalPointsForProgressions, julianDay,
+          coordinates.lat || 43.4167, coordinates.lon || 24.6167
+        );
+        
+        const filteredProgressions = progressions.filter(prog => {
+          const progPlanetNames = ["Слънце", "Луна", "Меркурий", "Венера", "Марс", "Юпитер", "Сатурн", "Уран", "Нептун", "Плутон"];
+          const isProgPlanet = progPlanetNames.includes(prog.transitPlanet);
+          
+          const allowedNatalPoints = ["☉", "☽", "☿", "♀", "♂", "♃", "♄", "♅", "♆", "♇", "ASC", "IC", "DSC", "MC"];
+          const isValidNatalPoint = allowedNatalPoints.includes(prog.natalPoint) || 
+                                   ["Слънце", "Луна", "Меркурий", "Венера", "Марс", "Юпитер", "Сатурн", "Уран", "Нептун", "Плутон", "ASC", "IC", "DSC", "MC"].includes(prog.natalPoint);
+          
+          return isProgPlanet && isValidNatalPoint;
+        });
+        
+        dayTransits.progressions = filteredProgressions.map(prog => ({
+          transitPlanet: prog.transitPlanet,
+          aspect: prog.symbol,
+          natalPoint: prog.natalPoint,
+          orb: prog.orb,
+          isRetrograde: prog.isRetrograde,
+          isProgression: true,
+          description: `Прогресия: ${prog.transitPlanet} ${prog.symbol} ${prog.natalPoint}`
+        }));
+        
+        if (filteredProgressions.length > 0) {
+          console.log(`🔮 Found ${filteredProgressions.length} progressions`);
+        }
+        
+        console.log(`🪐 Calculating outer planets for ${dateString}...`);
+        for (const transitPlanet of outerPlanets) {
+          const planetIndex = this.planetIndices[transitPlanet];
+          if (!planetIndex) continue;
+          
+          try {
+            const result = swisseph.swe_calc_ut(julianDay, planetIndex, swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED);
+            if (!result.error) {
+              const transitLongitude = result.longitude;
+              const transitSpeed = result.longitudeSpeed;
+              const isRetrograde = transitSpeed < 0;
+              
+              for (const [natalPoint, natalLongitude] of Object.entries(natalPointsForTransits)) {
+                let angle = Math.abs(transitLongitude - natalLongitude);
+                angle = angle > 180 ? 360 - angle : angle;
+                
+                for (const aspect of majorAspects) {
+                  const diff = Math.abs(angle - aspect.angle);
+                  if (diff <= aspect.orb) {
+                    dayTransits.outerPlanets.push({
+                      transitPlanet: transitPlanet,
+                      aspect: aspect.symbol,
+                      natalPoint: natalPoint,
+                      orb: diff.toFixed(2),
+                      isRetrograde: isRetrograde,
+                      description: this.getTransitDescription(transitPlanet, aspect.name, natalPoint)
+                    });
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error calculating ${transitPlanet}:`, error);
+          }
+        }
+        
+        if (dayTransits.outerPlanets.length > 0) {
+          console.log(`🪐 Found ${dayTransits.outerPlanets.length} outer planet aspects`);
+        }
+        
+        const venusAspects = [
+          { name: "Съвпад", angle: 0, orb: 1, symbol: "☌" },
+          { name: "Секстил", angle: 60, orb: 1, symbol: "⚹" },
+          { name: "Тригон", angle: 120, orb: 1, symbol: "△" }
+        ];
+        
+        try {
+          const venusResult = swisseph.swe_calc_ut(julianDay, swisseph.SE_VENUS, swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED);
+          if (!venusResult.error) {
+            const venusLongitude = venusResult.longitude;
+            const venusSpeed = venusResult.longitudeSpeed;
+            const isRetrograde = venusSpeed < 0;
+            
+            for (const [natalPoint, natalLongitude] of Object.entries(natalPointsForTransits)) {
+              let angle = Math.abs(venusLongitude - natalLongitude);
+              angle = angle > 180 ? 360 - angle : angle;
+              
+              for (const aspect of venusAspects) {
+                const diff = Math.abs(angle - aspect.angle);
+                if (diff <= aspect.orb) {
+                  dayTransits.venus.push({
+                    transitPlanet: "Венера",
+                    aspect: aspect.symbol,
+                    natalPoint: natalPoint,
+                    orb: diff.toFixed(2),
+                    isRetrograde: isRetrograde,
+                    description: this.getTransitDescription("Венера", aspect.name, natalPoint)
+                  });
+                  break;
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error calculating Venus:", error);
+        }
+        
+        if (dayTransits.venus.length > 0) {
+          console.log(`♀ Found ${dayTransits.venus.length} Venus aspects`);
+        }
+        
+        const marsAspects = [
+          { name: "Съвпад", angle: 0, orb: 1, symbol: "☌" },
+          { name: "Квадратура", angle: 90, orb: 1, symbol: "□" },
+          { name: "Опозиция", angle: 180, orb: 1, symbol: "☍" }
+        ];
+        
+        try {
+          const marsResult = swisseph.swe_calc_ut(julianDay, swisseph.SE_MARS, swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED);
+          if (!marsResult.error) {
+            const marsLongitude = marsResult.longitude;
+            const marsSpeed = marsResult.longitudeSpeed;
+            const isRetrograde = marsSpeed < 0;
+            
+            for (const [natalPoint, natalLongitude] of Object.entries(natalPointsForTransits)) {
+              let angle = Math.abs(marsLongitude - natalLongitude);
+              angle = angle > 180 ? 360 - angle : angle;
+              
+              for (const aspect of marsAspects) {
+                const diff = Math.abs(angle - aspect.angle);
+                if (diff <= aspect.orb) {
+                  dayTransits.mars.push({
+                    transitPlanet: "Марс",
+                    aspect: aspect.symbol,
+                    natalPoint: natalPoint,
+                    orb: diff.toFixed(2),
+                    isRetrograde: isRetrograde,
+                    description: this.getTransitDescription("Марс", aspect.name, natalPoint)
+                  });
+                  break;
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error calculating Mars:", error);
+        }
+        
+        if (dayTransits.mars.length > 0) {
+          console.log(`♂ Found ${dayTransits.mars.length} Mars aspects`);
+        }
+        
+        try {
+          const mercuryResult = swisseph.swe_calc_ut(julianDay, swisseph.SE_MERCURY, swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED);
+          if (!mercuryResult.error) {
+            const mercuryLongitude = mercuryResult.longitude;
+            const mercurySpeed = mercuryResult.longitudeSpeed;
+            const isRetrograde = mercurySpeed < 0;
+            
+            if (isRetrograde) {
+              for (const [natalPoint, natalLongitude] of Object.entries(natalPointsForTransits)) {
+                let angle = Math.abs(mercuryLongitude - natalLongitude);
+                angle = angle > 180 ? 360 - angle : angle;
+                
+                for (const aspect of majorAspects) {
+                  const diff = Math.abs(angle - aspect.angle);
+                  if (diff <= aspect.orb) {
+                    dayTransits.mercuryRetro.push({
+                      transitPlanet: "Меркурий",
+                      aspect: aspect.symbol,
+                      natalPoint: natalPoint,
+                      orb: diff.toFixed(2),
+                      isRetrograde: true,
+                      description: this.getTransitDescription("Меркурий", aspect.name, natalPoint)
+                    });
+                    break;
+                  }
+                }
+              }
+            }
+            
+            if (isRetrograde && dayTransits.mercuryRetro.length > 0) {
+              console.log(`☿R Found ${dayTransits.mercuryRetro.length} Mercury retrograde aspects`);
+            }
+          }
+        } catch (error) {
+          console.error("Error calculating Mercury:", error);
+        }
+        
+        const ingressResult = this.checkIngressesForDate(currentDate, previousSigns);
+        
+        if (ingressResult.ingresses.length > 0) {
+          dayTransits.transitIngresses = ingressResult.ingresses.map(ingress => 
+            this.formatIngress(ingress)
+          );
+          console.log(`🌟 Formatted ${dayTransits.transitIngresses.length} ingresses for display`);
+        }
+        
+        previousSigns = ingressResult.updatedSigns;
+        
+        const hasAnyAspects = dayTransits.progressions.length > 0 ||
+                             dayTransits.outerPlanets.length > 0 ||
+                             dayTransits.venus.length > 0 ||
+                             dayTransits.mars.length > 0 ||
+                             dayTransits.mercuryRetro.length > 0;
+        
+        const hasAnyIngresses = dayTransits.transitIngresses.length > 0 ||
+                               dayTransits.progressionIngresses.length > 0;
+        
+        const totalEvents = dayTransits.progressions.length + 
+                           dayTransits.outerPlanets.length + 
+                           dayTransits.venus.length + 
+                           dayTransits.mars.length + 
+                           dayTransits.mercuryRetro.length + 
+                           dayTransits.transitIngresses.length;
+        
+        if (hasAnyAspects || hasAnyIngresses) {
+          forecastArray.push(dayTransits);
+          console.log(`📊 Added day ${dateString} with ${totalEvents} total events (${dayTransits.progressions.length} prog, ${dayTransits.outerPlanets.length + dayTransits.venus.length + dayTransits.mars.length + dayTransits.mercuryRetro.length} trans, ${dayTransits.transitIngresses.length} ingr)`);
+        } else {
+          console.log(`⭕ No events found for ${dateString}, skipping`);
+        }
+        
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      console.log("=== SERVER: Forecast calculation completed ===");
+      console.log(`Found ${forecastArray.length} days with aspects and ingresses out of ${dayCounter} total days checked`);
+      
+      let totalProgressions = 0;
+      let totalTransits = 0;
+      let totalIngresses = 0;
+      
+      forecastArray.forEach(day => {
+        totalProgressions += day.progressions.length;
+        totalTransits += day.outerPlanets.length + day.venus.length + day.mars.length + day.mercuryRetro.length;
+        totalIngresses += day.transitIngresses.length;
+      });
+      
+      console.log(`📊 SUMMARY: ${totalProgressions} progressions, ${totalTransits} transits, ${totalIngresses} ingresses`);
+      
+      return forecastArray;
+      
+    } catch (error) {
+      console.error("=== SERVER: Error calculating forecast ===", error);
+      throw error;
+    }
+  }
+
+  getTransitDescription(transitPlanet, aspect, natalPlanet) {
+    const descriptions = {
+      "Юпитер": {
+        "Съвпад": "Разширяване и възможности",
+        "Тригон": "Благоприятен период за растеж",
+        "Секстил": "Добри възможности",
+        "Квадратура": "Предизвикателства за растеж",
+        "Опозиция": "Баланс между амбиции и реалност"
+      },
+      "Сатурн": {
+        "Съвпад": "Важен период на зрялост и отговорност",
+        "Тригон": "Стабилизиране и постижения",
+        "Секстил": "Практични възможности",
+        "Квадратура": "Тестове и предизвикателства",
+        "Опозиция": "Кулминация на отговорности"
+      },
+      "Уран": {
+        "Съвпад": "Внезапни промени и освобождаване",
+        "Тригон": "Позитивни промени и иновации",
+        "Секстил": "Възможности за промяна",
+        "Квадратура": "Напрежение и необходимост от промяна",
+        "Опозиция": "Радикални промени в живота"
+      },
+      "Нептун": {
+        "Съвпад": "Духовно пробуждане или объркване",
+        "Тригон": "Вдъхновение и интуиция",
+        "Секстил": "Творчески възможности",
+        "Квадратура": "Илюзии и заблуди",
+        "Опозиция": "Необходимост от яснота"
+      },
+      "Плутон": {
+        "Съвпад": "Дълбока трансформация",
+        "Тригон": "Позитивна трансформация",
+        "Секстил": "Възможности за промяна",
+        "Квадратура": "Интензивни предизвикателства",
+        "Опозиция": "Радикална трансформация"
+      },
+      "Марс": {
+        "Съвпад": "Енергия и инициатива",
+        "Тригон": "Добра енергия за действие",
+        "Секстил": "Възможности за действие",
+        "Квадратура": "Конфликти и напрежение",
+        "Опозиция": "Конфронтация"
+      },
+      "Венера": {
+        "Съвпад": "Любов и красота",
+        "Тригон": "Хармония в отношенията",
+        "Секстил": "Приятни възможности",
+        "Квадратура": "Проблеми в отношенията",
+        "Опозиция": "Баланс в партньорството"
+      },
+      "Меркурий": {
+        "Съвпад": "Комуникация и мислене",
+        "Тригон": "Ясно мислене",
+        "Секстил": "Добра комуникация",
+        "Квадратура": "Недоразумения",
+        "Опозиция": "Противоречива информация"
+      },
+      "Слънце": {
+        "Съвпад": "Фокус върху тази сфера",
+        "Тригон": "Хармония и виталност",
+        "Секстил": "Позитивна енергия",
+        "Квадратура": "Предизвикателства",
+        "Опозиция": "Необходимост от баланс"
+      }
+    };
+    
+    const planetDesc = descriptions[transitPlanet];
+    if (planetDesc && planetDesc[aspect]) {
+      return `${planetDesc[aspect]} в сферата на ${natalPlanet}`;
+    }
+    
+    return `${transitPlanet} ${aspect} ${natalPlanet}`;
+  }
+}
+
+const astrologyCalculator = new AstrologyCalculator();
+
+export default astrologyCalculator;

@@ -70,20 +70,7 @@ export const forecastRequestSchema = z.object({
   endDate: z.string().optional()
 });
 
-// Ingression Schema
-export const ingressionSchema = z.object({
-  date: z.string(),
-  planet: z.string(),
-  planetSymbol: z.string(),
-  fromSign: z.string(),
-  toSign: z.string(),
-  description: z.string(),
-});
-
 // Типове
 export type BirthData = z.infer<typeof legacyBirthDataSchema>;
 export type Coordinates = z.infer<typeof coordinatesSchema>;
 export type ForecastRequest = z.infer<typeof forecastRequestSchema>;
-export type Ingression = z.infer<typeof ingressionSchema>;
-
-

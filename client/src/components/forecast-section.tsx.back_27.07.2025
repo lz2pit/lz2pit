@@ -125,19 +125,6 @@ export default function ForecastSection({
         if (daysWithProgIngresses.length > 0) {
           console.log("First day with progression ingresses:", daysWithProgIngresses[0]);
           console.log("Progression ingresses details:", daysWithProgIngresses[0].progressionIngresses);
-          
-          // Показваме детайли за ингресията
-          const firstIngress = daysWithProgIngresses[0].progressionIngresses[0];
-          if (firstIngress) {
-            console.log("Ingress details:", {
-              planet: firstIngress.planet,
-              sign: firstIngress.sign,
-              planetSymbol: firstIngress.planetSymbol,
-              signSymbol: firstIngress.signSymbol,
-              type: firstIngress.type,
-              time: firstIngress.time
-            });
-          }
         }
         
         // Проверяваме специално за 22.10.2025
@@ -248,30 +235,27 @@ export default function ForecastSection({
     );
   };
 
-  const renderIngress = (ing: Ingress) => {
-    console.log("Rendering ingress:", ing);
-    return (
-      <div className="mb-1 flex items-center gap-1">
-        <span
-          className="text-lg symbol-font"
-          style={{ color: getPlanetColor(ing.planet) }}
-          title={ing.planet}
-        >
-          {ing.planetSymbol}
-          {ing.isRetrograde && <span className="text-xs text-red-600 font-bold ml-1">R</span>}
-        </span>
-        <span className="text-lg mx-1">→</span>
-        <span
-          className="text-lg symbol-font"
-          style={{ color: getZodiacColor(ing.sign) }}
-          title={ing.sign}
-        >
-          {ing.signSymbol}
-        </span>
-        {ing.time && <span className="text-xs text-gray-500 ml-1">({ing.time})</span>}
-      </div>
-    );
-  };
+  const renderIngress = (ing: Ingress) => (
+    <div className="mb-1 flex items-center gap-1">
+      <span
+        className="text-lg symbol-font"
+        style={{ color: getPlanetColor(ing.planet) }}
+        title={ing.planet}
+      >
+        {ing.planetSymbol}
+        {ing.isRetrograde && <span className="text-xs text-red-600 font-bold ml-1">R</span>}
+      </span>
+      <span className="text-lg mx-1">→</span>
+      <span
+        className="text-lg symbol-font"
+        style={{ color: getZodiacColor(ing.sign) }}
+        title={ing.sign}
+      >
+        {ing.signSymbol}
+      </span>
+      {ing.time && <span className="text-xs text-gray-500 ml-1">({ing.time})</span>}
+    </div>
+  );
 
   useEffect(() => () => { esRef.current?.close() }, []);
 
@@ -395,31 +379,14 @@ export default function ForecastSection({
                       {(progs.length + progressionColumnIngresses.length) > 0 ? (
                         <div className="space-y-1">
                           {progs.map((t, j) => <div key={`p-${j}`}>{renderTransit(t)}</div>)}
-                          
-                          {/* ВРЕМЕНЕН DEBUG - показваме винаги ако има ингресии */}
-                          {day.date === '2025-10-26' && (
-                            <div className="border-2 border-red-500 bg-red-50 p-2 mt-2">
-                              <div className="text-red-600 font-bold">DEBUG 26 OCT:</div>
-                              <div>progIngr length: {progIngr.length}</div>
-                              <div>progressionColumnIngresses length: {progressionColumnIngresses.length}</div>
-                              {progIngr.length > 0 && (
-                                <div>First ingress: {JSON.stringify(progIngr[0])}</div>
-                              )}
-                            </div>
-                          )}
-                          
                           {progressionColumnIngresses.length > 0 && (
                             <>
-                              {console.log(`RENDERING ${progressionColumnIngresses.length} progression ingresses for ${day.date}:`, progressionColumnIngresses)}
-                              {progressionColumnIngresses.map((ing, j) => {
-                                console.log(`Rendering ingress ${j}:`, ing);
-                                return (
-                                  <div key={`pi-${j}`} className="border-t-2 border-purple-500 pt-2 mt-2 bg-purple-50 p-2 rounded">
-                                    <div className="text-xs text-purple-600 font-semibold mb-1">ИНГРЕСИЯ:</div>
-                                    {renderIngress(ing)}
-                                  </div>
-                                );
-                              })}
+                              {console.log(`Rendering ${progressionColumnIngresses.length} progression ingresses for ${day.date}`)}
+                              {progressionColumnIngresses.map((ing, j) => (
+                                <div key={`pi-${j}`} className="border-t border-gray-200 pt-1 mt-1">
+                                  {renderIngress(ing)}
+                                </div>
+                              ))}
                             </>
                           )}
                         </div>
